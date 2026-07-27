@@ -54,8 +54,8 @@ docker compose up -d qdrant
 ## Run API and UI
 
 ```bash
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-uv run streamlit run ui/streamlit_app.py
+uv run api
+uv run ui
 ```
 
 Open:

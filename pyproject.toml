@@ -16,6 +16,10 @@ dependencies = [
     "streamlit>=1.37.0",
 ]
 
+[project.scripts]
+api = "main:run_api"
+ui = "ui:run_ui"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
@@ -33,4 +37,3 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-
