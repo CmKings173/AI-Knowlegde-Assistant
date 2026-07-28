@@ -6,11 +6,6 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:6333/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   api:
     image: ai-knowledge-assistant-api:v1
@@ -41,8 +36,7 @@ services:
       timeout: 5s
       retries: 5
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
 
   ui:
     image: ai-knowledge-assistant-ui:v1
