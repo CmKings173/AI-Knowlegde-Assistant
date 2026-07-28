@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     fusion_top_k: int = 20
     rerank_top_k: int = 20
     final_context_top_n: int = 4
-    min_retrieval_score: float = 0.25
+    min_retrieval_score: float = 0.01
     max_context_tokens: int = 3000
 
     chunk_target_tokens: int = 350

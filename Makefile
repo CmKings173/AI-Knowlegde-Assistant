@@ -4,10 +4,10 @@ install:
 	$(UV) sync --extra dev
 
 run-api:
-	$(UV) run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+	$(UV) run api
 
 run-ui:
-	$(UV) run streamlit run ui/streamlit_app.py
+	$(UV) run ui
 
 ingest:
 	$(UV) run python scripts/ingest_documents.py --input "data/uploads/Nội Quy và Văn Hóa của Việt Thái Dương.docx" --input "data/uploads/Quy Định và Kiến Thức Cơ bản.docx"
@@ -25,7 +25,12 @@ test:
 	$(UV) run pytest
 
 lint:
-	$(UV) run ruff check .
+	$(UV) run ruff check . --no-cache
+
+harness-check:
+	$(UV) run python scripts/check_harness.py
+
+check: lint test harness-check
 
 format:
 	$(UV) run ruff format .

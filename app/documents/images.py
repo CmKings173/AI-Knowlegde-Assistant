@@ -17,6 +17,6 @@ def load_image_lookup(documents_dir: Path, document_ids: set[str]) -> dict[str, 
                 "image_id": image_id,
                 "file_name": image["file_name"],
                 "section": image.get("section", ""),
-                "url": f"/assets/documents/{document_id}/images/{image['file_name']}",
+                "url": f"/api/v1/documents/{document_id}/images/{image['file_name']}",
             }
     return lookup

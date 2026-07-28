@@ -113,3 +113,28 @@ class RetrievalResult:
     chunks: list[Chunk] = field(default_factory=list)
     candidate_count: int = 0
     reranker_used: bool = False
+
+
+@dataclass(frozen=True)
+class RetrievalFilters:
+    document_ids: list[str] = field(default_factory=list)
+    knowledge_types: list[KnowledgeType] = field(default_factory=list)
+    domains: list[str] = field(default_factory=list)
+    language: str | None = None
+    include_parent_chunks: bool | None = None
+
+
+def chunk_matches_filters(chunk: Chunk, filters: RetrievalFilters | None) -> bool:
+    if filters is None:
+        return True
+    if filters.document_ids and chunk.document_id not in filters.document_ids:
+        return False
+    if filters.knowledge_types and chunk.knowledge_type not in filters.knowledge_types:
+        return False
+    if filters.domains and chunk.domain not in filters.domains:
+        return False
+    if filters.language and chunk.language != filters.language:
+        return False
+    if filters.include_parent_chunks is False and chunk.is_parent:
+        return False
+    return True

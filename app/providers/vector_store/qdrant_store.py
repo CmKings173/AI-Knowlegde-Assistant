@@ -6,8 +6,9 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 
 from app.config import Settings
+from app.domain.enums import KnowledgeType
 from app.domain.exceptions import VectorStoreError
-from app.domain.models import Chunk
+from app.domain.models import Chunk, RetrievalFilters
 from app.providers.vector_store.base import VectorStore
 
 
@@ -17,17 +18,19 @@ class QdrantVectorStore(VectorStore):
         self.client = AsyncQdrantClient(url=settings.qdrant_url, check_compatibility=False)
 
     async def ensure_collection(self, vector_size: int) -> None:
-        if await self._collection_exists():
+        if await self._collection_exists(raise_on_error=True):
             return
         await self.client.create_collection(
             collection_name=self.collection,
             vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE),
         )
 
-    async def _collection_exists(self) -> bool:
+    async def _collection_exists(self, raise_on_error: bool = False) -> bool:
         try:
             collections = await self.client.get_collections()
         except Exception:  # noqa: BLE001
+            if raise_on_error:
+                raise
             return False
         return any(item.name == self.collection for item in collections.collections)
 
@@ -47,13 +50,19 @@ class QdrantVectorStore(VectorStore):
         ]
         await self.client.upsert(collection_name=self.collection, points=points)
 
-    async def search(self, vector: list[float], top_k: int) -> list[Chunk]:
+    async def search(
+        self,
+        vector: list[float],
+        top_k: int,
+        filters: RetrievalFilters | None = None,
+    ) -> list[Chunk]:
         if not await self._collection_exists():
             return []
         results = await self.client.search(
             collection_name=self.collection,
             query_vector=vector,
             limit=top_k,
+            query_filter=build_qdrant_filter(filters),
             with_payload=True,
         )
         return [
@@ -62,7 +71,7 @@ class QdrantVectorStore(VectorStore):
         ]
 
     async def delete_document(self, document_id: str) -> None:
-        if not await self._collection_exists():
+        if not await self._collection_exists(raise_on_error=True):
             return
         await self.client.delete(
             collection_name=self.collection,
@@ -95,3 +104,56 @@ class QdrantVectorStore(VectorStore):
             if offset is None:
                 break
         return chunks
+
+
+def build_qdrant_filter(filters: RetrievalFilters | None) -> models.Filter | None:
+    if filters is None:
+        return None
+
+    conditions: list[models.FieldCondition] = []
+    _add_any_condition(conditions, "document_id", filters.document_ids)
+    _add_any_condition(
+        conditions,
+        "knowledge_type",
+        [knowledge_type.value for knowledge_type in filters.knowledge_types],
+    )
+    _add_any_condition(conditions, "domain", filters.domains)
+    if filters.language:
+        conditions.append(
+            models.FieldCondition(
+                key="language",
+                match=models.MatchValue(value=filters.language),
+            )
+        )
+    if filters.include_parent_chunks is False:
+        conditions.append(
+            models.FieldCondition(
+                key="is_parent",
+                match=models.MatchValue(value=False),
+            )
+        )
+
+    return models.Filter(must=conditions) if conditions else None
+
+
+def _add_any_condition(
+    conditions: list[models.FieldCondition],
+    key: str,
+    values: list[str | KnowledgeType],
+) -> None:
+    if not values:
+        return
+    if len(values) == 1:
+        conditions.append(
+            models.FieldCondition(
+                key=key,
+                match=models.MatchValue(value=str(values[0])),
+            )
+        )
+        return
+    conditions.append(
+        models.FieldCondition(
+            key=key,
+            match=models.MatchAny(any=[str(value) for value in values]),
+        )
+    )

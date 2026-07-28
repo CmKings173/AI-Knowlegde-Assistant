@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from app.domain.models import Chunk
+from app.domain.models import Chunk, RetrievalFilters
 
 
 class VectorStore(ABC):
@@ -15,7 +15,12 @@ class VectorStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def search(self, vector: list[float], top_k: int) -> list[Chunk]:
+    async def search(
+        self,
+        vector: list[float],
+        top_k: int,
+        filters: RetrievalFilters | None = None,
+    ) -> list[Chunk]:
         raise NotImplementedError
 
     @abstractmethod
@@ -25,4 +30,3 @@ class VectorStore(ABC):
     @abstractmethod
     async def list_chunks(self, limit: int = 10_000) -> list[Chunk]:
         raise NotImplementedError
-

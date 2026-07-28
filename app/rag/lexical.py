@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rank_bm25 import BM25Okapi
 
-from app.domain.models import Chunk
+from app.domain.models import Chunk, RetrievalFilters, chunk_matches_filters
 from app.utils.text import tokenize
 
 
@@ -16,17 +16,29 @@ class LexicalIndex:
         tokenized = [tokenize(chunk.content) for chunk in self.chunks]
         self.index = BM25Okapi(tokenized) if tokenized else None
 
-    def search(self, query: str, top_k: int) -> list[Chunk]:
-        if not self.index or not self.chunks:
+    def search(
+        self,
+        query: str,
+        top_k: int,
+        filters: RetrievalFilters | None = None,
+    ) -> list[Chunk]:
+        chunks = [chunk for chunk in self.chunks if chunk_matches_filters(chunk, filters)]
+        if not chunks:
             return []
-        scores = self.index.get_scores(tokenize(query))
+        index = (
+            self.index
+            if filters is None
+            else BM25Okapi([tokenize(chunk.content) for chunk in chunks])
+        )
+        if not index:
+            return []
+        scores = index.get_scores(tokenize(query))
         ranked = sorted(enumerate(scores), key=lambda item: float(item[1]), reverse=True)[:top_k]
         results: list[Chunk] = []
         for index, score in ranked:
             if float(score) <= 0:
                 continue
-            chunk = self.chunks[index]
+            chunk = chunks[index]
             chunk.score = float(score)
             results.append(chunk)
         return results
-

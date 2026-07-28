@@ -5,7 +5,6 @@ import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.api.routes_chat import router as chat_router
 from app.api.routes_documents import router as documents_router
@@ -22,11 +21,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(chat_router)
     app.include_router(documents_router)
-    app.mount(
-        "/assets/documents",
-        StaticFiles(directory=settings.documents_dir, check_dir=False),
-        name="document-assets",
-    )
     app.middleware("http")(request_id_middleware)
     app.add_exception_handler(ApplicationError, application_error_handler)
     app.add_exception_handler(Exception, unhandled_error_handler)

@@ -25,7 +25,7 @@ flowchart TD
 ## Setup
 
 ```bash
-uv sync --extra dev
+uv sync
 copy .env.example .env
 ```
 
@@ -62,6 +62,29 @@ Open:
 
 - API docs: http://localhost:8000/docs
 - UI: http://localhost:8501
+
+## Agent Harness
+
+This repository is the system of record for future agent sessions:
+
+- Start with `AGENTS.md`.
+- Read `CONSTRAINTS.md` before changing ingestion, retrieval, storage, or deployment.
+- Read `PROGRESS.md` for durable current status.
+- Read local `ARCHITECTURE.md` files beside modules before changing them.
+
+Verify the harness and code:
+
+```bash
+uv run ruff check . --no-cache
+uv run pytest tests/unit
+uv run python scripts/check_harness.py
+```
+
+Or through Make:
+
+```bash
+make check
+```
 
 ## Upload Documents
 
@@ -127,6 +150,22 @@ The script computes Hit Rate@K, Recall@K, MRR, exact section match, and average 
 - `POST /api/v1/documents`
 - `POST /api/v1/documents/{document_id}/reindex`
 - `DELETE /api/v1/documents/{document_id}`
+
+Chat accepts optional metadata filters. Filters are applied before dense search,
+BM25 lexical search, and hybrid fusion:
+
+```json
+{
+  "question": "Cach cau hinh email?",
+  "filters": {
+    "document_ids": ["doc-..."],
+    "knowledge_types": ["TECHNICAL_GUIDE"],
+    "domains": ["it"],
+    "language": "vi",
+    "include_parent_chunks": false
+  }
+}
+```
 
 ## Notes
 

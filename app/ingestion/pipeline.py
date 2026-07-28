@@ -240,6 +240,15 @@ def _existing_response(record: DocumentRecord) -> dict[str, object]:
     }
 
 
+def remove_document_from_global_chunks_snapshot(processed_dir: Path, document_id: str) -> None:
+    path = processed_dir / "chunks.json"
+    if not path.exists():
+        return
+    existing = json.loads(path.read_text(encoding="utf-8"))
+    kept = [item for item in existing if item.get("document_id") != document_id]
+    path.write_text(json.dumps(kept, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _created_at(manifest_store: ManifestStore, document_id: str) -> str:
     record = manifest_store.load().documents.get(document_id)
     return record.created_at if record else now_iso()
