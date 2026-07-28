@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Generator
+from collections.abc import Generator
 
 import requests
 import streamlit as st
@@ -39,7 +39,11 @@ CUSTOM_CSS = """
         align-items: center;
         gap: 16px;
         padding: 18px 24px;
-        background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%);
+        background: linear-gradient(
+            135deg,
+            rgba(37, 99, 235, 0.08) 0%,
+            rgba(124, 58, 237, 0.08) 100%
+        );
         border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 16px;
         margin-bottom: 24px;
@@ -126,8 +130,10 @@ CUSTOM_CSS = """
         justify-content: flex-start !important;
     }
 
-    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"],
-    [data-testid="stChatMessage"]:has([aria-label*="user" i]) [data-testid="stChatMessageContent"] {
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])
+    [data-testid="stChatMessageContent"],
+    [data-testid="stChatMessage"]:has([aria-label*="user" i])
+    [data-testid="stChatMessageContent"] {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
         color: #ffffff !important;
         border-radius: 20px 20px 4px 20px !important;
@@ -137,8 +143,10 @@ CUSTOM_CSS = """
         box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25) !important;
     }
 
-    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] p,
-    [data-testid="stChatMessage"]:has([aria-label*="user" i]) [data-testid="stChatMessageContent"] p {
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])
+    [data-testid="stChatMessageContent"] p,
+    [data-testid="stChatMessage"]:has([aria-label*="user" i])
+    [data-testid="stChatMessageContent"] p {
         color: #ffffff !important;
         margin: 0 !important;
         text-align: left !important;
@@ -151,8 +159,10 @@ CUSTOM_CSS = """
         justify-content: flex-start !important;
     }
 
-    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"],
-    [data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageContent"] {
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"])
+    [data-testid="stChatMessageContent"],
+    [data-testid="stChatMessage"]:has([aria-label*="assistant" i])
+    [data-testid="stChatMessageContent"] {
         background: #f1f5f9 !important;
         color: #0f172a !important;
         border-radius: 20px 20px 20px 4px !important;
@@ -164,8 +174,10 @@ CUSTOM_CSS = """
     }
 
     @media (prefers-color-scheme: dark) {
-        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"],
-        [data-testid="stChatMessage"]:has([aria-label*="assistant" i]) [data-testid="stChatMessageContent"] {
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"])
+        [data-testid="stChatMessageContent"],
+        [data-testid="stChatMessage"]:has([aria-label*="assistant" i])
+        [data-testid="stChatMessageContent"] {
             background: #1e293b !important;
             color: #f8fafc !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -206,7 +218,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 def check_api_health() -> bool:
     """Check backend API health status."""
     try:
-        res = requests.get(f"{API_BASE_URL}/api/v1/health", timeout=3)
+        res = requests.get(f"{API_BASE_URL}/health", timeout=3)
         return res.status_code == 200
     except Exception:
         return False
@@ -265,7 +277,10 @@ with st.sidebar:
         pass
 
     doc_options = {
-        f"{doc.get('original_name', 'Doc')} ({doc.get('document_id', '')[:8]}...)": doc.get("document_id")
+        (
+            f"{doc.get('original_name', 'Doc')} "
+            f"({doc.get('document_id', '')[:8]}...)"
+        ): doc.get("document_id")
         for doc in chat_documents
     }
 
@@ -293,7 +308,9 @@ st.markdown(
         <div class="brand-icon">🤖</div>
         <div>
             <h2 class="brand-title">Trợ lý Kiến thức Nội bộ</h2>
-            <p class="brand-subtitle">Hỏi đáp quy định công ty, ổ NAS, Outlook và thủ tục nội bộ nhanh chóng</p>
+            <p class="brand-subtitle">
+                Hỏi đáp quy định công ty, ổ NAS, Outlook và thủ tục nội bộ nhanh chóng
+            </p>
         </div>
     </div>
 """,
@@ -314,7 +331,7 @@ with tab_chat:
             ("📧 Cấu hình Outlook", "Hướng dẫn cài đặt email Outlook trên máy tính mới?"),
         ]
 
-        for col, (label, prompt_text) in zip([col1, col2, col3], suggestions):
+        for col, (label, prompt_text) in zip([col1, col2, col3], suggestions, strict=False):
             with col:
                 if st.button(label, help=prompt_text, key=label, use_container_width=True):
                     st.session_state.pending_prompt = prompt_text
@@ -380,7 +397,11 @@ with tab_chat:
             payload = {"question": prompt}
             if selected_doc_labels:
                 payload["filters"] = {
-                    "document_ids": [doc_options[lbl] for lbl in selected_doc_labels if lbl in doc_options],
+                    "document_ids": [
+                        doc_options[label]
+                        for label in selected_doc_labels
+                        if label in doc_options
+                    ],
                     "include_parent_chunks": False,
                 }
 
@@ -418,7 +439,8 @@ with tab_chat:
 
                 # Render Citations
                 if citations:
-                    with st.expander(f"📚 Nguồn tham khảo ({len(citations)} tài liệu)", expanded=True):
+                    source_label = f"📚 Nguồn tham khảo ({len(citations)} tài liệu)"
+                    with st.expander(source_label, expanded=True):
                         for idx, cit in enumerate(citations, 1):
                             doc_name = cit.get("document_name", "Tài liệu")
                             section = cit.get("section", "Chung")

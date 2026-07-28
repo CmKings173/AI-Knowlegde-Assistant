@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.env
+data/*
+!data/evaluation/
+!data/evaluation/**
+docs
+tests
