@@ -58,16 +58,16 @@ class QdrantVectorStore(VectorStore):
     ) -> list[Chunk]:
         if not await self._collection_exists():
             return []
-        results = await self.client.search(
+        response = await self.client.query_points(
             collection_name=self.collection,
-            query_vector=vector,
+            query=vector,
             limit=top_k,
             query_filter=build_qdrant_filter(filters),
             with_payload=True,
         )
         return [
             Chunk.from_payload(dict(point.payload or {}), score=float(point.score))
-            for point in results
+            for point in response.points
         ]
 
     async def delete_document(self, document_id: str) -> None:
@@ -97,6 +97,33 @@ class QdrantVectorStore(VectorStore):
                 collection_name=self.collection,
                 limit=min(256, limit - len(chunks)),
                 offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            chunks.extend(Chunk.from_payload(dict(record.payload or {})) for record in records)
+            if offset is None:
+                break
+        return chunks
+
+    async def list_document_chunks(self, document_id: str, limit: int = 10_000) -> list[Chunk]:
+        chunks: list[Chunk] = []
+        if not await self._collection_exists():
+            return chunks
+        offset = None
+        query_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="document_id",
+                    match=models.MatchValue(value=document_id),
+                )
+            ]
+        )
+        while len(chunks) < limit:
+            records, offset = await self.client.scroll(
+                collection_name=self.collection,
+                limit=min(256, limit - len(chunks)),
+                offset=offset,
+                scroll_filter=query_filter,
                 with_payload=True,
                 with_vectors=False,
             )

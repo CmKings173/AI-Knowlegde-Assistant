@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.deps import get_embedding_provider, get_vector_store
+from app.api.deps import get_embedding_provider, get_manifest_store, get_vector_store
 from app.config import get_settings
+from app.documents.reconciliation import reconcile_manifest_with_chunks
 
 router = APIRouter()
 
@@ -24,3 +25,9 @@ async def health() -> dict[str, str]:
         "embedding_provider": type(get_embedding_provider()).__name__,
     }
 
+
+@router.get("/health/reconciliation")
+async def health_reconciliation() -> dict[str, object]:
+    manifest = get_manifest_store().load()
+    chunks = await get_vector_store().list_chunks()
+    return reconcile_manifest_with_chunks(manifest, chunks)

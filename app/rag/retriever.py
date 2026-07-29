@@ -26,6 +26,17 @@ class Retriever:
         self.lexical_index.build(chunks)
         self._loaded = True
 
+    async def all_chunks(self) -> list[Chunk]:
+        if not self._loaded:
+            await self.reload()
+        return list(self.lexical_index.chunks)
+
+    async def document_chunks(self, document_id: str) -> list[Chunk]:
+        chunks = await self.vector_store.list_document_chunks(document_id)
+        if chunks:
+            return chunks
+        return [chunk for chunk in await self.all_chunks() if chunk.document_id == document_id]
+
     async def retrieve(
         self,
         query: str,

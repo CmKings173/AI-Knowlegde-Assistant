@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
+
 import httpx
 
 from app.config import Settings
@@ -30,3 +33,36 @@ class OllamaProvider(LLMProvider):
         if response.status_code >= 400:
             raise LLMProviderError(f"Ollama failed: {response.status_code}")
         return response.json()["message"]["content"]
+
+    async def stream_generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> AsyncIterator[str]:
+        try:
+            async with self.client.stream(
+                "POST",
+                f"{self.settings.ollama_base_url.rstrip('/')}/api/chat",
+                json={
+                    "model": self.settings.ollama_model,
+                    "stream": True,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                },
+            ) as response:
+                if response.status_code >= 400:
+                    raise LLMProviderError(f"Ollama failed: {response.status_code}")
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        raise LLMProviderError("Ollama returned invalid stream JSON") from exc
+                    content = data.get("message", {}).get("content", "")
+                    if content:
+                        yield str(content)
+        except httpx.HTTPError as exc:
+            raise LLMProviderError(str(exc)) from exc

@@ -22,6 +22,16 @@ def normalize_query(query: str, synonyms: dict[str, str] | None = None) -> str:
     return result
 
 
+def normalize_for_intent(text: str) -> str:
+    normalized = normalize_text(text).lower().replace("đ", "d")
+    without_marks = "".join(
+        char
+        for char in unicodedata.normalize("NFD", normalized)
+        if unicodedata.category(char) != "Mn"
+    )
+    return re.sub(r"\s+", " ", without_marks).strip()
+
+
 def estimate_tokens(text: str) -> int:
     return max(1, len(re.findall(r"\S+", text)))
 
@@ -35,4 +45,3 @@ def excerpt(text: str, limit: int = 280) -> str:
     if len(clean) <= limit:
         return clean
     return clean[: limit - 1].rstrip() + "…"
-

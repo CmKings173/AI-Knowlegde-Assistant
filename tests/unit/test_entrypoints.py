@@ -16,16 +16,18 @@ def test_api_entrypoint_uses_fastapi_app(monkeypatch) -> None:
     assert called["kwargs"]["port"] == 8000
 
 
-def test_ui_entrypoint_targets_streamlit_app(monkeypatch) -> None:
+def test_ui_entrypoint_targets_react_dev_server(monkeypatch) -> None:
     import ui
 
     called = {}
 
-    def fake_streamlit_main() -> None:
-        called["argv"] = list(ui.sys.argv)
+    def fake_run(args, check):
+        called["args"] = args
+        called["check"] = check
 
-    monkeypatch.setattr(ui.streamlit_cli, "main", fake_streamlit_main)
+    monkeypatch.setattr(ui.subprocess, "run", fake_run)
 
     ui.run_ui()
 
-    assert called["argv"] == ["streamlit", "run", "ui/streamlit_app.py"]
+    assert called["args"] == ["npm", "--prefix", "frontend", "run", "dev"]
+    assert called["check"] is True

@@ -49,7 +49,7 @@ def detect_heading(text: str, style: str = "", level: int | None = None) -> tupl
 def elements_to_sections(elements: list[ParsedElement]) -> list[Section]:
     headings: list[str] = []
     sections: list[Section] = []
-    current = Section(heading_path=["Tài liệu"], lines=[])
+    current = Section(heading_path=["T\u00e0i li\u1ec7u"], lines=[])
 
     for element in elements:
         text = clean_text(element.text)

@@ -35,14 +35,48 @@ class ChatFilters(BaseModel):
         )
 
 
+class ChatHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatContinuation(BaseModel):
+    mode: Literal["broad_section"]
+    document_id: str = Field(min_length=1, max_length=200)
+    section_root: str = Field(min_length=1, max_length=500)
+    next_offset: int = Field(ge=0)
+    source_question: str = Field(min_length=1, max_length=2000)
+    token: str = Field(min_length=32, max_length=200)
+
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
+    history: list[ChatHistoryMessage] = Field(default_factory=list)
+    continuation: ChatContinuation | None = None
     filters: ChatFilters | None = None
 
     def retrieval_filters(self) -> RetrievalFilters | None:
         if self.filters is None:
             return None
         return self.filters.to_retrieval_filters()
+
+    def sanitized_history(self, max_messages: int, max_chars: int) -> list[dict[str, str]]:
+        selected = self.history[-max_messages:]
+        remaining_chars = max_chars
+        sanitized: list[dict[str, str]] = []
+        for message in reversed(selected):
+            content = message.content.strip()
+            if not content or remaining_chars <= 0:
+                continue
+            content = content[-remaining_chars:]
+            remaining_chars -= len(content)
+            sanitized.append({"role": message.role, "content": content})
+        return list(reversed(sanitized))
+
+
+class CitationBlockResponse(BaseModel):
+    text: str
+    images: list[dict[str, str]] = []
 
 
 class CitationResponse(BaseModel):
@@ -52,6 +86,8 @@ class CitationResponse(BaseModel):
     chunk_id: str
     excerpt: str
     images: list[dict[str, str]] = []
+    content: str = ""
+    content_blocks: list[CitationBlockResponse] = []
 
 
 class RetrievalMeta(BaseModel):
@@ -60,11 +96,39 @@ class RetrievalMeta(BaseModel):
     reranker_used: bool
 
 
+class RouteTrace(BaseModel):
+    intent: str | None = None
+    subtype: str | None = None
+    confidence: float | None = None
+    reason: str | None = None
+    branch: str | None = None
+    candidate_count: int | None = None
+    context_count: int | None = None
+    best_score: float | None = None
+    parse_error: str | None = None
+    fact_guard_error: str | None = None
+    rewrite_used: bool = False
+    llm_router_used: bool = False
+
+
+class ContinuationResponse(BaseModel):
+    has_more: bool
+    mode: Literal["broad_section"]
+    document_id: str
+    section_root: str
+    next_offset: int
+    source_question: str
+    token: str
+
+
 ResponseStatus = Literal[
     "answered",
     "partial",
     "insufficient_context",
     "out_of_scope",
+    "conversational",
+    "clarify",
+    "generation_failed",
     "conflict",
 ]
 
@@ -75,6 +139,8 @@ class ChatResponse(BaseModel):
     citations: list[CitationResponse]
     retrieval: RetrievalMeta
     timing_ms: dict[str, int]
+    continuation: ContinuationResponse | None = None
+    trace: RouteTrace | None = None
 
 
 class DocumentResponse(BaseModel):

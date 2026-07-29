@@ -1,13 +1,15 @@
 UV ?= uv
+NPM ?= npm
 
 install:
 	$(UV) sync --extra dev
+	cd frontend && $(NPM) install
 
 run-api:
 	$(UV) run api
 
 run-ui:
-	$(UV) run ui
+	cd frontend && $(NPM) run dev
 
 ingest:
 	$(UV) run python scripts/ingest_documents.py --input "data/uploads/Nội Quy và Văn Hóa của Việt Thái Dương.docx" --input "data/uploads/Quy Định và Kiến Thức Cơ bản.docx"
@@ -31,6 +33,9 @@ harness-check:
 	$(UV) run python scripts/check_harness.py
 
 check: lint test harness-check
+
+ui-build:
+	cd frontend && $(NPM) run build
 
 format:
 	$(UV) run ruff format .

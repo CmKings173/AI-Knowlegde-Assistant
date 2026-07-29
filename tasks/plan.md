@@ -1,67 +1,42 @@
-# Implementation Plan: AI Knowledge Assistant
+# Implementation Plan: RAG Router, Faithfulness And Citation Hardening
 
 ## Overview
-
-Build a modular-monolith internal RAG system. Documents are uploaded or ingested at runtime, parsed, chunked, embedded, indexed into Qdrant, then queried through FastAPI and Streamlit. Embeddings are provider-based, with OpenAI/Gemini API for MVP and hash embeddings for offline smoke tests. LLM generation defaults to local Ollama.
+Fix the current production-risk bugs where out-of-scope questions can be answered by the conversational LLM, vague NAS follow-ups can bypass retrieval or retrieve the wrong section, cited answers can contain unsupported modality claims, and frontend citation labels can show mismatched `SOURCE_X` markers.
 
 ## Architecture Decisions
-
-- Dynamic ingestion: source code does not embed company documents. Users upload DOCX/MD/TXT through UI/API or ingest with CLI.
-- Per-document storage: each document is stored under `data/documents/{document_id}` with original file, extracted images, chunks, image metadata, and manifest.
-- Local LLM: Ollama keeps answer generation on the user's machine. API LLM providers remain swappable.
-- API embeddings for MVP: OpenAI/Gemini avoid local model setup cost. Provider abstraction allows BGE-M3 later.
-- Qdrant is the retrieval store. Local JSON manifest tracks document hashes/status because PostgreSQL is intentionally out of scope.
-- Retrieval is governed RAG: normalize query, dense search, BM25 local, RRF fusion, bounded context, citation validation, refusal threshold.
+- Keep rule-based fast paths for clear cases, but tighten domain gating before any conversational LLM call.
+- Route contextual NAS/mobile/detail follow-ups into query rewrite plus retrieval instead of conversational generation.
+- Extend fact validation from day/time claims to critical retrieval modality terms such as mobile app vs internal network access.
+- Keep citation IDs stable from backend to frontend; UI labels must reflect `citation_id`, not render order.
+- Use regression tests for each reported behavior before implementation.
 
 ## Task List
 
-### Phase 1: Foundation
+### Phase 1: Reproduction Tests
+- [ ] Add router tests for out-of-scope cat questions.
+- [ ] Add router tests for NAS mobile follow-up classification.
+- [ ] Add parser/UI tests for comma-separated `SOURCE_X` markers.
+- [ ] Add guard tests for answers that mention mobile/app terms not supported by cited context.
 
-- [x] Create uv-based Python project structure.
-- [x] Add config, logging, exceptions, domain models.
-- [x] Add provider interfaces and health endpoint.
+### Phase 2: Backend Guardrails
+- [ ] Tighten out-of-scope gating before conversational LLM.
+- [ ] Expand contextual follow-up detection for mobile/detail terms.
+- [ ] Strengthen query rewrite prompt for vague follow-ups.
+- [ ] Extend fact guard with critical support terms.
 
-### Phase 2: Ingestion
+### Phase 3: Frontend Citation UX
+- [ ] Convert comma-separated source markers like `[SOURCE_1, SOURCE_3]` to `[1], [3]`.
+- [ ] Render source panel labels from `citation.citation_id`.
 
-- [x] Add DOCX/MD/TXT loader.
-- [x] Add rule-based classification and heading-aware parent-child chunking.
-- [x] Add manifest storage and upload-safe file storage.
-- [x] Add embedding/index pipeline.
-- [x] Add per-document storage and status manifest.
-- [x] Extract DOCX images and map image IDs to nearest paragraph/step chunks.
-
-### Phase 3: Retrieval And Generation
-
-- [x] Add query normalization, BM25, RRF, context builder.
-- [x] Add Ollama/OpenAI/Gemini LLM providers.
-- [x] Add chat/debug API endpoints and citation response contract.
-
-### Phase 4: UI And Operations
-
-- [x] Add Streamlit chat/upload UI.
-- [x] Add CLI scripts for ingest, inspect, rebuild, evaluate.
-- [x] Add Docker Compose, Dockerfiles, Makefile, README.
-
-### Phase 5: Verification
-
-- [x] Unit tests for core logic.
-- [x] Ruff lint clean.
-- [x] Parse/chunk smoke test with the two real DOCX files.
-- [x] Dynamic ingestion smoke test with 56 extracted images and idempotency.
-- [ ] Qdrant ingestion smoke test.
-- [ ] Retrieval evaluation against Qdrant.
-- [ ] End-to-end chat with Ollama.
+### Checkpoint
+- [ ] `uv run ruff check . --no-cache`
+- [ ] `uv run python -m pytest tests/unit -q`
+- [ ] `npm run build` from `frontend/`
 
 ## Risks and Mitigations
-
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Docker daemon unavailable | Cannot run Qdrant verification | Docker Desktop currently returns 500/timeouts; code remains Docker-ready; verify ingestion with fake vector store |
-| Missing API keys | Cannot call real embeddings | Use `EMBEDDING_PROVIDER=hash` for offline tests |
-| Ollama has no model | Chat generation fails | Pull `qwen2.5:3b-instruct` or set `LLM_PROVIDER=echo` for smoke |
-| Vietnamese DOCX styles are inconsistent | Headings may be missed | Detect both Word Heading styles and Vietnamese patterns like `Phần`, `Điều` |
-
-## Open Questions
-
-- Which real embedding provider should be default in `.env`: OpenAI or Gemini?
-- Which Ollama model should be pulled for your machine size?
+| Over-blocking normal chat | Medium | Only block clear out-of-domain factual topics before LLM; keep greetings/meta questions conversational |
+| False positive modality guard | Medium | Guard only critical explicit terms that must be present in cited context |
+| Follow-up rewrite adds unsupported context | High | Prompt rewrite to use only current question plus conversation history, not external assumptions |
+| Citation label mismatch remains confusing | Medium | Derive displayed label directly from backend `citation_id` |

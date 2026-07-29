@@ -17,7 +17,8 @@ or API-backed LLM with citations and related images.
 - `app/ingestion/` — unified document ingestion pipeline for seed and future docs.
 - `app/rag/` — retrieval, context building, prompt construction, citation validation.
 - `app/providers/` — LLM, embedding, and vector-store integrations.
-- `ui/` — Streamlit UI.
+- `frontend/` - React assistant-ui frontend.
+- `ui.py` - local launcher for the React development server.
 - `scripts/` — CLI operations for ingest, reindex, evaluation, and harness checks.
 - `data/` — runtime storage; real uploads and processed docs are ignored by git.
 - `tests/` — unit and future integration tests.
@@ -31,6 +32,9 @@ Read `PROGRESS.md` at the start and update it when durable project state changes
 
 ```powershell
 uv sync
+cd frontend
+npm install
+cd ..
 docker compose up -d qdrant
 uv run api
 ```
@@ -38,7 +42,7 @@ uv run api
 In another terminal:
 
 ```powershell
-uv run ui
+uv run python ui.py
 ```
 
 Local smoke-test config can use:
@@ -58,6 +62,9 @@ Fast local gate:
 ```powershell
 uv run ruff check . --no-cache
 uv run pytest tests/unit
+cd frontend
+npm run build
+cd ..
 uv run python scripts/check_harness.py
 ```
 

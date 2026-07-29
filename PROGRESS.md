@@ -1,12 +1,24 @@
 # Progress
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## Current state
 
-- FastAPI backend, Streamlit UI, dynamic DOCX ingestion, Qdrant vector store, BM25,
-  RRF hybrid retrieval, citations, and related image return are implemented.
-- Short entrypoints exist: `uv run api` and `uv run ui`.
+- FastAPI backend, React assistant-ui frontend, dynamic DOCX ingestion, Qdrant
+  vector store, BM25, RRF hybrid retrieval, citations, and related image return
+  are implemented.
+- API can run through the Python entrypoint; UI can run with `uv run python ui.py`
+  or `npm run dev` from `frontend/`.
+- Docker UI now builds the React frontend and serves it through Nginx, proxying API
+  calls to the `api` service.
+- React UI selects all ingested documents by default; document checkboxes are now
+  optional scope filters.
+- RAG pipeline logs intent, branch, retrieval, context, and response metadata for
+  request tracing without logging secrets or continuation tokens.
+- Short messages after chat history, including "tiep di", are routed as follow-up
+  turns instead of returning the static greeting.
+- Conversational turns now use the LLM without retrieval instead of returning a
+  static greeting, so replies can use recent chat history and sound less mechanical.
 - Metadata filtering is implemented before dense search, BM25 search, and RRF fusion.
 - Agent harness has been added so future sessions can recover project state from repo.
 - Retrieval threshold is calibrated for RRF score scale (`MIN_RETRIEVAL_SCORE=0.01`).
@@ -19,6 +31,7 @@ Last updated: 2026-07-28
 
 - `uv run ruff check . --no-cache`
 - `uv run pytest tests/unit`
+- `npm run build` from `frontend/`
 - Dynamic ingestion smoke test passed with fake vector store for a copied seed DOCX:
   parse, image extraction, chunks, manifest, idempotent re-add.
 
@@ -29,7 +42,8 @@ Last updated: 2026-07-28
 - Reranker model is configured but not implemented; retrieval currently uses dense
   search + BM25 + RRF top-k.
 - No authentication, authorization, rate limit, Redis cache, or production queue yet.
-- UI text currently contains mojibake in some Vietnamese labels and should be cleaned.
+- Frontend currently uses request/response chat over the existing REST API; token
+  streaming is not implemented yet.
 
 ## Open engineering follow-ups
 

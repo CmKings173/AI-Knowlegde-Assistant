@@ -99,6 +99,12 @@ class Chunk:
 
 
 @dataclass(frozen=True)
+class CitationBlock:
+    text: str
+    images: list[dict[str, str]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class Citation:
     citation_id: str
     document_name: str
@@ -106,6 +112,8 @@ class Citation:
     chunk_id: str
     excerpt: str
     images: list[dict[str, str]] = field(default_factory=list)
+    content: str = ""
+    content_blocks: list[CitationBlock] = field(default_factory=list)
 
 
 @dataclass

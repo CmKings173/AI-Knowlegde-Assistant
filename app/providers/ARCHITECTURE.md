@@ -12,7 +12,7 @@ Providers isolate external/runtime dependencies from the application core.
 ## Embedding providers
 
 - `openai` — `text-embedding-3-small` by default.
-- `gemini` — `text-embedding-004` by default.
+- `gemini` — `gemini-embedding-001` by default.
 - `hash` — deterministic local embedding for tests/smoke checks only.
 
 ## Vector store

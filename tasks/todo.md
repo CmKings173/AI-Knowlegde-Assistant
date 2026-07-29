@@ -1,18 +1,17 @@
-# TODO
+# Todo: RAG Router, Faithfulness And Citation Hardening
 
-- [x] Build foundation modules.
-- [x] Build ingestion core.
-- [x] Build retrieval and generation pipeline.
-- [x] Build API and UI.
-- [x] Add operation scripts and docs.
-- [x] Add `POST /api/v1/documents` dynamic ingestion endpoint.
-- [x] Add per-document storage layout.
-- [x] Add DOCX image extraction and image metadata.
-- [x] Add citation image URLs for UI.
-- [x] Run lint.
-- [x] Smoke parse the two real DOCX files.
-- [x] Smoke dynamic ingestion with extracted images and idempotency.
-- [ ] Start Qdrant and run real indexing.
-- [ ] Run retrieval evaluation after indexing.
-- [ ] Start Ollama model and test chat response.
-- [ ] Add deeper integration tests around Qdrant when Docker access is available.
+- [x] Add regression tests for out-of-scope cat questions.
+- [x] Add regression tests for out-of-scope travel planning questions.
+- [x] Add regression tests for Chrome/bookmark knowledge routing.
+- [x] Add regression tests for NAS mobile/detail follow-up routing.
+- [x] Add regression tests for unsupported mobile/app claims in cited answers.
+- [x] Add regression tests for frontend citation marker conversion and source labels.
+- [x] Fix intent routing and follow-up detection.
+- [x] Add Chrome/bookmark terms to internal knowledge routing.
+- [x] Add soft refusal and redirection for non-internal topics.
+- [x] Strengthen query rewrite prompt.
+- [x] Improve lexical retrieval with section and heading text.
+- [x] Extend fact guard with critical support terms.
+- [x] Fix frontend citation marker/label rendering.
+- [x] Run lint, unit tests, and frontend build.
+- [x] Perform code review pass.

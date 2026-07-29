@@ -30,3 +30,7 @@ class VectorStore(ABC):
     @abstractmethod
     async def list_chunks(self, limit: int = 10_000) -> list[Chunk]:
         raise NotImplementedError
+
+    async def list_document_chunks(self, document_id: str, limit: int = 10_000) -> list[Chunk]:
+        chunks = await self.list_chunks(limit)
+        return [chunk for chunk in chunks if chunk.document_id == document_id]

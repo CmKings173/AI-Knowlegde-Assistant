@@ -1,11 +1,8 @@
-import sys
-
-from streamlit.web import cli as streamlit_cli
+import subprocess
 
 
 def run_ui() -> None:
-    sys.argv = ["streamlit", "run", "ui/streamlit_app.py"]
-    streamlit_cli.main()
+    subprocess.run(["npm", "--prefix", "frontend", "run", "dev"], check=True)
 
 
 if __name__ == "__main__":

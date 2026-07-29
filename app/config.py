@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from secrets import token_urlsafe
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,21 +22,25 @@ class Settings(BaseSettings):
     processed_dir: Path = Path("data/processed")
     max_upload_mb: int = 50
     max_question_chars: int = 2000
+    max_history_messages: int = 6
+    max_history_chars: int = 4000
+    continuation_secret: str = Field(default_factory=lambda: token_urlsafe(32))
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "company_knowledge"
 
-    embedding_provider: str = "openai"
+    embedding_provider: str = "ollama"
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_embedding_model: str = "text-embedding-3-small"
     gemini_api_key: str = ""
-    gemini_embedding_model: str = "text-embedding-004"
+    gemini_embedding_model: str = "gemini-embedding-001"
     embedding_batch_size: int = 16
 
     llm_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:3b-instruct"
+    ollama_embedding_model: str = "bge-m3"
     llm_timeout_seconds: int = 240
     openai_model: str = ""
     gemini_model: str = "gemini-1.5-flash"
@@ -50,6 +55,7 @@ class Settings(BaseSettings):
     final_context_top_n: int = 4
     min_retrieval_score: float = 0.01
     max_context_tokens: int = 3000
+    broad_max_context_tokens: int = 8000
 
     chunk_target_tokens: int = 350
     chunk_max_tokens: int = 550
@@ -67,6 +73,11 @@ class Settings(BaseSettings):
             "gập máy": "đóng nắp laptop",
         }
     )
+
+    @field_validator("continuation_secret")
+    @classmethod
+    def default_continuation_secret(cls, value: str) -> str:
+        return value or token_urlsafe(32)
 
 
 @lru_cache

@@ -16,8 +16,9 @@ services:
     env_file:
       - .env
     environment:
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-bge-m3}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -44,8 +45,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile.ui
     restart: unless-stopped
-    environment:
-      API_BASE_URL: http://api:8000
     ports:
       - "8501:8501"
     depends_on:

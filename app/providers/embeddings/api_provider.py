@@ -51,6 +51,27 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         return vectors
 
 
+class OllamaEmbeddingProvider(EmbeddingProvider):
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self.client = httpx.AsyncClient(timeout=30)
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        response = await self.client.post(
+            f"{self.settings.ollama_base_url.rstrip('/')}/api/embed",
+            json={"model": self.settings.ollama_embedding_model, "input": texts},
+        )
+        if response.status_code >= 400:
+            raise EmbeddingError(f"Ollama embedding failed: {response.status_code}")
+        data = response.json()
+        vectors = data.get("embeddings")
+        if not isinstance(vectors, list):
+            raise EmbeddingError("Ollama embedding response missing embeddings")
+        if len(vectors) != len(texts):
+            raise EmbeddingError("Ollama embedding count mismatch")
+        return vectors
+
+
 class HashEmbeddingProvider(EmbeddingProvider):
     """Deterministic local embedding for tests and offline smoke checks."""
 
@@ -77,7 +98,8 @@ def create_embedding_provider(settings: Settings) -> EmbeddingProvider:
         return OpenAIEmbeddingProvider(settings)
     if provider == "gemini":
         return GeminiEmbeddingProvider(settings)
+    if provider == "ollama":
+        return OllamaEmbeddingProvider(settings)
     if provider == "hash":
         return HashEmbeddingProvider()
     raise EmbeddingError(f"Unsupported embedding provider: {settings.embedding_provider}")
-
