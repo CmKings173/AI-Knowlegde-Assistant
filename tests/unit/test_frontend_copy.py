@@ -75,3 +75,15 @@ def test_frontend_uses_controlled_composer_for_chat_submit() -> None:
     assert "disabled={!canSend}" in app_source
     assert "void sendMessage(question)" in app_source
     assert "sendMessage," in runtime_source
+
+
+def test_frontend_client_id_has_crypto_fallback() -> None:
+    runtime_source = (ROOT / "frontend" / "src" / "chat-runtime.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "function createClientId()" in runtime_source
+    assert "globalThis.crypto?.randomUUID" in runtime_source
+    assert "globalThis.crypto?.getRandomValues" in runtime_source
+    assert "Math.random().toString(36)" in runtime_source
+    assert "return `${prefix}-${crypto.randomUUID()}`" not in runtime_source
