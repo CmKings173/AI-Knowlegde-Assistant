@@ -37,9 +37,9 @@ export function ChatRuntimeProvider({
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const onNew = useCallback(
-    async (message: AppendMessage) => {
-      const question = textFromAppendMessage(message).trim();
+  const sendMessage = useCallback(
+    async (questionInput: string) => {
+      const question = questionInput.trim();
       if (!question) {
         return;
       }
@@ -157,6 +157,13 @@ export function ChatRuntimeProvider({
     [continuation, messages, selectedDocumentIds]
   );
 
+  const onNew = useCallback(
+    async (message: AppendMessage) => {
+      await sendMessage(textFromAppendMessage(message));
+    },
+    [sendMessage]
+  );
+
   const onCancel = useCallback(async () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
@@ -177,6 +184,7 @@ export function ChatRuntimeProvider({
       continuation,
       isRunning,
       progressLabel,
+      sendMessage,
       clearChat: () => {
         abortControllerRef.current?.abort();
         setMessages([]);
@@ -185,7 +193,7 @@ export function ChatRuntimeProvider({
         setProgressLabel(null);
       }
     }),
-    [continuation, isRunning, messages, progressLabel]
+    [continuation, isRunning, messages, progressLabel, sendMessage]
   );
 
   return (

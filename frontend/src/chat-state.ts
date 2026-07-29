@@ -7,6 +7,7 @@ export type ChatState = {
   continuation: ChatContinuation | null;
   isRunning: boolean;
   progressLabel: string | null;
+  sendMessage: (question: string) => Promise<void>;
   clearChat: () => void;
 };
 

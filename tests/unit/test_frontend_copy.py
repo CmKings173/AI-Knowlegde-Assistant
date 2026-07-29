@@ -60,3 +60,18 @@ def test_frontend_formats_source_markers_and_labels_from_citation_ids() -> None:
     assert "formatCitationMarkers" in runtime_source
     assert "splitSourceMarkerList" in runtime_source
     assert "[SOURCE_1, SOURCE_3]" not in runtime_source
+
+
+def test_frontend_uses_controlled_composer_for_chat_submit() -> None:
+    app_source = (ROOT / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    state_source = (ROOT / "frontend" / "src" / "chat-state.ts").read_text(encoding="utf-8")
+    runtime_source = (ROOT / "frontend" / "src" / "chat-runtime.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ComposerPrimitive" not in app_source
+    assert "sendMessage: (question: string) => Promise<void>" in state_source
+    assert "const [value, setValue] = useState(\"\")" in app_source
+    assert "disabled={!canSend}" in app_source
+    assert "void sendMessage(question)" in app_source
+    assert "sendMessage," in runtime_source

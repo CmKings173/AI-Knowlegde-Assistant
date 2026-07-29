@@ -1,6 +1,5 @@
 import {
   AuiIf,
-  ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive
 } from "@assistant-ui/react";
@@ -193,6 +192,7 @@ function KnowledgeThread() {
 }
 
 function EmptyState() {
+  const { sendMessage, isRunning } = useChatState();
   const suggestions = [
     "N\u1ed9i quy c\u00f4ng ty g\u1ed3m nh\u1eefng g\u00ec?",
     "C\u00e1ch truy c\u1eadp NAS c\u00f4ng ty?",
@@ -209,9 +209,14 @@ function EmptyState() {
       <p>{"H\u1ecfi tr\u1ef1c ti\u1ebfp theo t\u00e0i li\u1ec7u n\u1ed9i b\u1ed9 \u0111\u00e3 ingest v\u00e0o h\u1ec7 th\u1ed1ng."}</p>
       <div className="suggestion-grid">
         {suggestions.map((suggestion) => (
-          <ThreadPrimitive.Suggestion key={suggestion} prompt={suggestion} asChild>
-            <button type="button">{suggestion}</button>
-          </ThreadPrimitive.Suggestion>
+          <button
+            disabled={isRunning}
+            key={suggestion}
+            type="button"
+            onClick={() => void sendMessage(suggestion)}
+          >
+            {suggestion}
+          </button>
         ))}
       </div>
     </div>
@@ -396,17 +401,45 @@ function ImagePreview({
 }
 
 function Composer() {
+  const { isRunning, sendMessage } = useChatState();
+  const [value, setValue] = useState("");
+  const canSend = value.trim().length > 0 && !isRunning;
+
+  const submit = () => {
+    const question = value.trim();
+    if (!question || isRunning) {
+      return;
+    }
+    setValue("");
+    void sendMessage(question);
+  };
+
   return (
-    <ComposerPrimitive.Root className="composer">
-      <ComposerPrimitive.Input
+    <form
+      className="composer"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
         className="composer-input"
         placeholder={"Nh\u1eadp c\u00e2u h\u1ecfi v\u1ec1 n\u1ed9i quy, SOP, NAS, Outlook..."}
         rows={1}
+        value={value}
+        disabled={isRunning}
+        onChange={(event) => setValue(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            submit();
+          }
+        }}
       />
-      <ComposerPrimitive.Send className="send-button" type="submit">
+      <button className="send-button" disabled={!canSend} type="submit">
         <ArrowUp size={18} />
-      </ComposerPrimitive.Send>
-    </ComposerPrimitive.Root>
+      </button>
+    </form>
   );
 }
 
