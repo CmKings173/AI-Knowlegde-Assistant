@@ -47,6 +47,13 @@ class IntentRouter:
         conversational_score = _score_terms(normalized, CONVERSATIONAL_TERMS)
         out_of_scope_score = _score_terms(normalized, OUT_OF_SCOPE_TERMS)
 
+        if _has_blocking_out_of_scope_term(normalized):
+            return IntentDecision(
+                Intent.OUT_OF_SCOPE,
+                0.9,
+                "blocking_out_of_scope_term",
+            )
+
         if out_of_scope_score > 0 and knowledge_score == 0:
             return IntentDecision(
                 Intent.OUT_OF_SCOPE,
@@ -320,11 +327,41 @@ OUT_OF_SCOPE_TERMS = (
     "giong cho",
     "thu cung",
     "dong vat",
+    "cong viec tro nen thu vi",
+    "cong viec thu vi",
+    "lam viec thu vi",
+    "dong luc lam viec",
+    "quan li tai chinh",
+    "quan ly tai chinh",
+    "tai chinh ca nhan",
+    "tai chinh kem",
+    "no tien",
+    "tra no",
+    "vay tien",
+    "100tr",
+    "tu tu",
+    "tu sat",
+    "muon chet",
+)
+
+BLOCKING_OUT_OF_SCOPE_TERMS = (
+    "tai chinh",
+    "no tien",
+    "tra no",
+    "vay tien",
+    "100tr",
+    "tu tu",
+    "tu sat",
+    "muon chet",
 )
 
 
 def _score_terms(text: str, terms: tuple[str, ...]) -> int:
     return sum(1 for term in terms if _contains_term(text, term))
+
+
+def _has_blocking_out_of_scope_term(text: str) -> bool:
+    return any(_contains_term(text, term) for term in BLOCKING_OUT_OF_SCOPE_TERMS)
 
 
 def _contains_term(text: str, term: str) -> bool:

@@ -1203,8 +1203,6 @@ def _strip_polite_suffix(value: str) -> str:
 
 
 def _is_streamable_conversation_intent(intent: IntentDecision) -> bool:
-    if intent.intent == Intent.CONVERSATIONAL_LLM:
-        return True
     return intent.intent == Intent.FOLLOW_UP and intent.subtype in {
         FollowUpSubtype.SOURCE_CHALLENGE,
         FollowUpSubtype.CONTINUATION,
