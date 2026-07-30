@@ -4,19 +4,20 @@ Last updated: 2026-07-30
 
 ## Current state
 
-- Chat endpoint hỗ trợ optional metadata filters.
-- Debug retrieve endpoint tôn trọng `DEBUG_ENDPOINTS_ENABLED`.
-- Documents API hỗ trợ add/upload, list, reindex, delete và serve image an toàn.
-- Upload đọc theo chunk và giới hạn `MAX_UPLOAD_MB`.
+- Chat endpoint supports optional metadata filters.
+- Chat filters include `document_scope` to distinguish searching all documents from searching only selected documents.
+- Debug retrieve endpoint respects `DEBUG_ENDPOINTS_ENABLED`.
+- Documents API supports add/upload, list, reindex, delete and safe image serving.
+- Upload reads in chunks and enforces `MAX_UPLOAD_MB`.
 
 ## Verified
 
-- Unit tests pass trong `tests/unit`.
-- Metadata filter schema conversion có test.
-- Stability tests cover image URL, upload/retrieval threshold và delete behavior liên quan.
+- Unit tests pass in `tests/unit`.
+- Metadata filter schema conversion is covered, including `document_scope="selected"`.
+- Stability tests cover image URL, upload/retrieval threshold and related delete behavior.
 
 ## Open work
 
-- Thêm authentication/authorization trước khi mở rộng production nội bộ.
-- Tắt debug endpoint mặc định trong production config.
-- Chuẩn hóa error response cho mọi `HTTPException` nếu cần API contract chặt hơn.
+- Add authentication/authorization before broader internal production rollout.
+- Disable debug endpoints by default in production config.
+- Standardize all `HTTPException` responses if a stricter API error contract is needed.

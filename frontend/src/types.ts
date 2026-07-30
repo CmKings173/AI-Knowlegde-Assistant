@@ -18,6 +18,7 @@ export type ChatContinuation = {
 export type ChatFilters = {
   document_ids?: string[];
   include_parent_chunks?: boolean;
+  document_scope?: "all" | "selected";
 };
 
 export type Citation = {

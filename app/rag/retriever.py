@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.config import Settings
-from app.domain.models import Chunk, RetrievalFilters, RetrievalResult
+from app.domain.models import Chunk, RetrievalFilters, RetrievalResult, filters_select_no_documents
 from app.providers.embeddings.base import EmbeddingProvider
 from app.providers.vector_store.base import VectorStore
 from app.rag.hybrid_search import reciprocal_rank_fusion
@@ -42,6 +42,8 @@ class Retriever:
         query: str,
         filters: RetrievalFilters | None = None,
     ) -> RetrievalResult:
+        if filters_select_no_documents(filters):
+            return RetrievalResult(chunks=[], candidate_count=0, reranker_used=False)
         if not self._loaded:
             await self.reload()
         query_vector = (await self.embedding_provider.embed_texts([query]))[0]

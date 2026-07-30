@@ -61,6 +61,13 @@ class IntentRouter:
                 "out_of_scope_term",
             )
 
+        if _is_vague_guidance_request(normalized):
+            return IntentDecision(
+                Intent.CLARIFY,
+                0.75,
+                "vague_guidance_request",
+            )
+
         if broad_score > 0 and knowledge_score > 0:
             return IntentDecision(
                 Intent.BROAD_SECTION_QUERY,
@@ -431,6 +438,21 @@ def _looks_contextual_follow_up(text: str) -> bool:
         "mang ngoai",
     )
     return any(_contains_term(text, term) for term in contextual_terms)
+
+
+def _is_vague_guidance_request(text: str) -> bool:
+    vague_requests = {
+        "huong dan toi di",
+        "huong dan di",
+        "chi toi di",
+        "chi minh di",
+        "chi em di",
+        "giup toi di",
+        "giup minh di",
+    }
+    if text not in vague_requests:
+        return False
+    return _score_terms(text, KNOWLEDGE_TERMS) <= 1
 
 
 def _follow_up_subtype(text: str) -> FollowUpSubtype:

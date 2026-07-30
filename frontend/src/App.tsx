@@ -72,13 +72,11 @@ export default function App() {
             isLoading={isLoadingDocuments}
             error={documentError}
             onToggleDocument={(documentId) => {
-              const allDocumentIds = documents.map((document) => document.document_id);
               setSelectedDocumentIds((current) => {
                 if (!current.includes(documentId)) {
                   return [...current, documentId];
                 }
-                const next = current.filter((id) => id !== documentId);
-                return next.length ? next : allDocumentIds;
+                return current.filter((id) => id !== documentId);
               });
             }}
             onSelectAll={() =>
@@ -508,10 +506,12 @@ function DocumentPanel({
       </label>
 
       <div className="scope-note">
-        {isFiltering
+        {selectedDocuments.size === 0
+          ? "Chưa chọn tài liệu nào. Hãy chọn ít nhất một tài liệu để tra cứu."
+          : isFiltering
           ? `\u0110ang gi\u1edbi h\u1ea1n trong ${selectedDocuments.size} t\u00e0i li\u1ec7u.`
           : "M\u1eb7c \u0111\u1ecbnh tra c\u1ee9u to\u00e0n b\u1ed9 t\u00e0i li\u1ec7u \u0111\u00e3 ingest."}
-        {isFiltering ? (
+        {isFiltering || selectedDocuments.size === 0 ? (
           <button type="button" onClick={onSelectAll}>
             {"D\u00f9ng t\u1ea5t c\u1ea3"}
           </button>

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from app.domain.enums import KnowledgeType
 
@@ -130,11 +130,14 @@ class RetrievalFilters:
     domains: list[str] = field(default_factory=list)
     language: str | None = None
     include_parent_chunks: bool | None = None
+    document_scope: Literal["all", "selected"] = "all"
 
 
 def chunk_matches_filters(chunk: Chunk, filters: RetrievalFilters | None) -> bool:
     if filters is None:
         return True
+    if filters_select_no_documents(filters):
+        return False
     if filters.document_ids and chunk.document_id not in filters.document_ids:
         return False
     if filters.knowledge_types and chunk.knowledge_type not in filters.knowledge_types:
@@ -146,3 +149,7 @@ def chunk_matches_filters(chunk: Chunk, filters: RetrievalFilters | None) -> boo
     if filters.include_parent_chunks is False and chunk.is_parent:
         return False
     return True
+
+
+def filters_select_no_documents(filters: RetrievalFilters | None) -> bool:
+    return bool(filters and filters.document_scope == "selected" and not filters.document_ids)

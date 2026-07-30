@@ -105,7 +105,7 @@ function buildChatPayload(input: {
   if (input.history.length) {
     payload.history = input.history;
   }
-  if (input.filters?.document_ids?.length) {
+  if (input.filters) {
     payload.filters = input.filters;
   }
   if (input.continuation) {

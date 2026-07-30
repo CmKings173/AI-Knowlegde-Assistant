@@ -4,17 +4,19 @@ Last updated: 2026-07-30
 
 ## Current state
 
-- Frontend React/Vite tồn tại trong `frontend/`.
-- Docker UI build dùng Node build stage và Nginx runtime.
-- UI Nginx proxy `/api` và `/health` về API container.
+- Frontend React/Vite exists in `frontend/`.
+- Docker UI build uses Node build stage and Nginx runtime.
+- UI Nginx proxies `/api` and `/health` to the API container.
+- Sidebar document selection sends `document_scope="selected"` plus the selected document IDs.
+- If the user deselects every document, the UI warns them and the backend does not search the full corpus.
 
 ## Verified
 
-- `npm run build` được ghi trong harness verification command.
-- Dockerfile UI có production static serving path.
+- `npm run build` passes with the current document filter contract.
+- Dockerfile UI has a production static serving path.
 
 ## Open work
 
-- Cần kiểm tra UX đầy đủ với skill `impeccable` nếu muốn polish UI.
-- Cần runtime browser verification cho chat/upload/citation images.
-- Cần quyết định domain nội bộ/reverse proxy ngoài cùng nếu bỏ port `8501`.
+- Run full browser verification for chat/upload/citation images.
+- Use the `impeccable` skill if the UI needs a deeper polish pass.
+- Decide final internal domain/reverse proxy if removing direct port `8501`.

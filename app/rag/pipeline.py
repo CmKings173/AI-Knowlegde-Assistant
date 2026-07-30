@@ -11,7 +11,7 @@ from enum import StrEnum
 
 from app.config import Settings
 from app.documents.images import load_image_lookup
-from app.domain.models import Chunk, Citation, RetrievalFilters
+from app.domain.models import Chunk, Citation, RetrievalFilters, filters_select_no_documents
 from app.providers.llm.base import LLMProvider
 from app.rag.citation_builder import build_citations
 from app.rag.context_builder import build_context
@@ -78,6 +78,32 @@ OUT_OF_SCOPE_RESPONSE = (
     "M\u00ecnh c\u00f3 th\u1ec3 h\u1ed7 tr\u1ee3 b\u1ea1n tra c\u1ee9u "
     "n\u1ed9i quy, ch\u00ednh s\u00e1ch, SOP, NAS, Outlook, email, "
     "Windows v\u00e0 troubleshooting trong t\u00e0i li\u1ec7u n\u1ed9i b\u1ed9."
+)
+OUT_OF_SCOPE_EMOTION_RESPONSE = (
+    "M\u00ecnh nghe b\u1ea1n \u0111ang kh\u00f4ng tho\u1ea3i m\u00e1i. "
+    "M\u00ecnh kh\u00f4ng ph\u1ea3i tr\u1ee3 l\u00fd t\u01b0 v\u1ea5n c\u00e1 nh\u00e2n, "
+    "nh\u01b0ng m\u00ecnh c\u00f3 th\u1ec3 h\u1ed7 tr\u1ee3 b\u1ea1n tra c\u1ee9u "
+    "v\u0103n h\u00f3a c\u00f4ng ty, n\u1ed9i quy, ch\u00ednh s\u00e1ch ho\u1eb7c SOP "
+    "n\u1ebfu \u0111i\u1ec1u \u0111\u00f3 li\u00ean quan \u0111\u1ebfn c\u00f4ng vi\u1ec7c."
+)
+OUT_OF_SCOPE_LEISURE_RESPONSE = (
+    "M\u00ecnh ch\u01b0a h\u1ed7 tr\u1ee3 l\u00ean k\u1ebf ho\u1ea1ch c\u00e1 nh\u00e2n "
+    "ho\u1eb7c \u0111i ch\u01a1i. N\u1ebfu b\u1ea1n c\u1ea7n tra c\u1ee9u th\u00f4ng tin "
+    "n\u1ed9i b\u1ed9 nh\u01b0 n\u1ed9i quy, v\u0103n h\u00f3a c\u00f4ng ty, SOP, "
+    "NAS, Outlook, email ho\u1eb7c Windows th\u00ec m\u00ecnh h\u1ed7 tr\u1ee3 \u0111\u01b0\u1ee3c."
+)
+REPEATED_OUT_OF_SCOPE_RESPONSE = (
+    "M\u00ecnh \u0111ang nh\u1eadn nhi\u1ec1u c\u00e2u h\u1ecfi ngo\u00e0i ph\u1ea1m vi "
+    "tr\u1ee3 l\u00fd ki\u1ebfn th\u1ee9c n\u1ed9i b\u1ed9. \u0110\u1ec3 m\u00ecnh h\u1eefu "
+    "\u00edch h\u01a1n, b\u1ea1n c\u00f3 th\u1ec3 h\u1ecfi v\u00ed d\u1ee5: "
+    "'n\u1ed9i quy c\u00f4ng ty g\u1ed3m nh\u1eefng g\u00ec?', "
+    "'v\u0103n h\u00f3a c\u00f4ng ty nh\u01b0 th\u1ebf n\u00e0o?' "
+    "ho\u1eb7c 'c\u00e1ch x\u1eed l\u00fd l\u1ed7i Outlook'."
+)
+NO_DOCUMENTS_SELECTED_RESPONSE = (
+    "B\u1ea1n ch\u01b0a ch\u1ecdn t\u00e0i li\u1ec7u n\u00e0o \u0111\u1ec3 tra c\u1ee9u. "
+    "H\u00e3y ch\u1ecdn \u00edt nh\u1ea5t m\u1ed9t t\u00e0i li\u1ec7u \u1edf thanh b\u00ean "
+    "tr\u00e1i, ho\u1eb7c ch\u1ecdn t\u1ea5t c\u1ea3 t\u00e0i li\u1ec7u."
 )
 GENERATION_FAILED_RESPONSE = (
     "T\u00f4i t\u00ecm th\u1ea5y t\u00e0i li\u1ec7u li\u00ean quan "
@@ -314,6 +340,7 @@ class RAGPipeline:
             )
         if intent.intent == Intent.OUT_OF_SCOPE:
             timing["total"] = int((time.perf_counter() - total_start) * 1000)
+            answer = _out_of_scope_response(normalized, history)
             _trace(
                 "rag_response",
                 branch="out_of_scope",
@@ -322,13 +349,31 @@ class RAGPipeline:
             )
             return _response(
                 status="out_of_scope",
-                answer=OUT_OF_SCOPE_RESPONSE,
+                answer=answer,
                 citations=[],
                 candidate_count=0,
                 context_count=0,
                 reranker_used=False,
                 timing=timing,
                 trace={**trace, "branch": "out_of_scope"},
+            )
+        if filters_select_no_documents(filters):
+            timing["total"] = int((time.perf_counter() - total_start) * 1000)
+            _trace(
+                "rag_response",
+                branch="no_documents_selected",
+                status="clarify",
+                total_ms=timing["total"],
+            )
+            return _response(
+                status="clarify",
+                answer=NO_DOCUMENTS_SELECTED_RESPONSE,
+                citations=[],
+                candidate_count=0,
+                context_count=0,
+                reranker_used=False,
+                timing=timing,
+                trace={**trace, "branch": "no_documents_selected"},
             )
         if intent.intent == Intent.BROAD_SECTION_QUERY:
             with measure_ms(timing, "retrieval"):
@@ -438,7 +483,7 @@ class RAGPipeline:
                 available_sources,
                 allowed_statuses=RAG_STATUSES,
             )
-            fact_result = _validate_fact_guard(parsed, citations)
+            fact_result = _validate_fact_guard(parsed, citations, context)
             if not parsed.is_valid:
                 retry_prompt = build_retry_prompt(
                     normalized,
@@ -453,7 +498,7 @@ class RAGPipeline:
                     available_sources,
                     allowed_statuses=RAG_STATUSES,
                 )
-                fact_result = _validate_fact_guard(parsed, citations)
+                fact_result = _validate_fact_guard(parsed, citations, context)
             elif fact_result and not fact_result.passed:
                 _trace(
                     "rag_fact_guard_rejected",
@@ -477,7 +522,7 @@ class RAGPipeline:
                     available_sources,
                     allowed_statuses=RAG_STATUSES,
                 )
-                fact_result = _validate_fact_guard(parsed, citations)
+                fact_result = _validate_fact_guard(parsed, citations, context)
 
         if fact_result and not fact_result.passed:
             status = "generation_failed"
@@ -551,6 +596,13 @@ class RAGPipeline:
             return
 
         intent = self.intent_router.classify(normalized, has_history=bool(history))
+        if filters_select_no_documents(filters) and intent.intent in {
+            Intent.BROAD_SECTION_QUERY,
+            Intent.KNOWLEDGE_QUERY,
+        }:
+            response = await self.answer(question, filters, history, continuation)
+            yield _stream_event("final", response)
+            return
         if _is_streamable_conversation_intent(intent):
             timing: dict[str, int] = {
                 "router": 0,
@@ -838,7 +890,7 @@ class RAGPipeline:
                 available_sources,
                 allowed_statuses=RAG_STATUSES,
             )
-            fact_result = _validate_fact_guard(parsed, citations)
+            fact_result = _validate_fact_guard(parsed, citations, context)
             if not parsed.is_valid:
                 retry_prompt = build_broad_retry_prompt(
                     question,
@@ -853,7 +905,7 @@ class RAGPipeline:
                     available_sources,
                     allowed_statuses=RAG_STATUSES,
                 )
-                fact_result = _validate_fact_guard(parsed, citations)
+                fact_result = _validate_fact_guard(parsed, citations, context)
             elif fact_result and not fact_result.passed:
                 _trace(
                     "rag_fact_guard_rejected",
@@ -881,7 +933,7 @@ class RAGPipeline:
                     available_sources,
                     allowed_statuses=RAG_STATUSES,
                 )
-                fact_result = _validate_fact_guard(parsed, citations)
+                fact_result = _validate_fact_guard(parsed, citations, context)
 
         if fact_result and not fact_result.passed:
             status = "generation_failed"
@@ -1110,13 +1162,18 @@ def _citations_for_sources(
 def _validate_fact_guard(
     parsed: ParsedModelOutput,
     citations: list[Citation],
+    full_context: str | None = None,
 ) -> FactValidationResult | None:
     if not parsed.is_valid or parsed.status not in SOURCE_REQUIRED_STATUSES:
         return None
     cited_context = _cited_context(citations, parsed.sources)
     if not cited_context:
         return None
-    return validate_fact_consistency(parsed.answer, cited_context)
+    cited_result = validate_fact_consistency(parsed.answer, cited_context)
+    if cited_result.passed or not full_context:
+        return cited_result
+    full_context_result = validate_fact_consistency(parsed.answer, full_context)
+    return full_context_result if full_context_result.passed else cited_result
 
 
 def _cited_context(citations: list[Citation], sources: list[str]) -> str:
@@ -1206,6 +1263,79 @@ def _strip_polite_suffix(value: str) -> str:
     while tokens and tokens[-1] in {"nhe", "nha", "di", "voi", "a"}:
         tokens.pop()
     return " ".join(tokens)
+
+
+def _out_of_scope_response(question: str, history: list[dict[str, str]]) -> str:
+    normalized = normalize_for_intent(question)
+    if _recent_out_of_scope_count(history) >= 2:
+        return REPEATED_OUT_OF_SCOPE_RESPONSE
+    if _is_personal_emotion_query(normalized):
+        return OUT_OF_SCOPE_EMOTION_RESPONSE
+    if _is_personal_leisure_query(normalized):
+        return OUT_OF_SCOPE_LEISURE_RESPONSE
+    return OUT_OF_SCOPE_RESPONSE
+
+
+def _recent_out_of_scope_count(history: list[dict[str, str]]) -> int:
+    count = 0
+    for message in reversed(history[-6:]):
+        if message.get("role") != "assistant":
+            continue
+        content = normalize_for_intent(str(message.get("content", "")))
+        if _looks_like_out_of_scope_response(content):
+            count += 1
+    return count
+
+
+def _looks_like_out_of_scope_response(content: str) -> bool:
+    return (
+        "ngoai pham vi" in content
+        or "khong phai tro ly tu van ca nhan" in content
+        or "chua ho tro len ke hoach ca nhan" in content
+        or "nhieu cau hoi ngoai pham vi" in content
+    )
+
+
+def _is_personal_emotion_query(normalized: str) -> bool:
+    return any(
+        term in normalized
+        for term in {
+            "toi buon",
+            "minh buon",
+            "em buon",
+            "anh buon",
+            "chi buon",
+            "toi chan",
+            "minh chan",
+            "em chan",
+            "toi met",
+            "minh met",
+            "toi stress",
+            "minh stress",
+            "toi co don",
+            "minh co don",
+            "tam su",
+            "an ui",
+            "tu van tam ly",
+        }
+    )
+
+
+def _is_personal_leisure_query(normalized: str) -> bool:
+    return any(
+        term in normalized
+        for term in {
+            "di choi",
+            "di du lich",
+            "du lich",
+            "di da nang",
+            "len plan",
+            "lich trinh",
+            "khach san",
+            "tour",
+            "ve may bay",
+        }
+    )
 
 
 def _is_streamable_conversation_intent(intent: IntentDecision) -> bool:

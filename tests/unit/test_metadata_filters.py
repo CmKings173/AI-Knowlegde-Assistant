@@ -2,7 +2,7 @@ from pathlib import Path
 
 from app.api.schemas import ChatRequest
 from app.domain.enums import KnowledgeType
-from app.domain.models import Chunk, RetrievalFilters
+from app.domain.models import Chunk, RetrievalFilters, chunk_matches_filters
 from app.providers.vector_store.qdrant_store import build_qdrant_filter
 from app.rag.lexical import LexicalIndex
 
@@ -82,6 +82,16 @@ def test_lexical_search_applies_metadata_filters_before_ranking() -> None:
     assert all(not chunk.is_parent for chunk in results)
 
 
+def test_selected_document_scope_with_empty_ids_matches_no_chunks() -> None:
+    chunk = make_chunk("00000000-0000-0000-0000-000000000006", "smtp email config")
+    filters = RetrievalFilters(document_scope="selected", document_ids=[])
+    index = LexicalIndex()
+    index.build([chunk])
+
+    assert not chunk_matches_filters(chunk, filters)
+    assert index.search("smtp", top_k=10, filters=filters) == []
+
+
 def test_qdrant_filter_contains_supported_metadata_conditions() -> None:
     query_filter = build_qdrant_filter(
         RetrievalFilters(
@@ -108,6 +118,7 @@ def test_chat_request_filters_convert_to_retrieval_filters() -> None:
     request = ChatRequest(
         question="Cach cau hinh email?",
         filters={
+            "document_scope": "selected",
             "document_ids": ["doc-a"],
             "knowledge_types": ["TECHNICAL_GUIDE"],
             "domains": ["it"],
@@ -119,6 +130,7 @@ def test_chat_request_filters_convert_to_retrieval_filters() -> None:
     filters = request.retrieval_filters()
 
     assert filters is not None
+    assert filters.document_scope == "selected"
     assert filters.document_ids == ["doc-a"]
     assert filters.knowledge_types == [KnowledgeType.TECHNICAL_GUIDE]
     assert filters.domains == ["it"]

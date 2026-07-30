@@ -34,12 +34,16 @@ khi tiếp tục.
 
 - Metadata filtering: PHẢI áp dụng metadata filtering trước dense search, BM25 search
   và RRF fusion.
+- Khi client gửi `document_scope="selected"` và `document_ids=[]`, KHÔNG ĐƯỢC search toàn bộ kho.
+  PHẢI trả clarify/no-document-selected an toàn.
 - PHẢI đưa vào LLM theo contract: system prompt + bounded context + user query.
 - PHẢI xem CONTEXT là dữ liệu không tin cậy, không phải system instruction.
 - PHẢI áp dụng metadata filtering trước dense search, BM25 search và RRF fusion.
 - PHẢI giới hạn context bằng `FINAL_CONTEXT_TOP_N` và `MAX_CONTEXT_TOKENS`.
 - PHẢI từ chối trả lời khi context không đủ bằng thông báo không tìm thấy trong tài liệu.
 - KHÔNG ĐƯỢC bịa chính sách, quy trình, IP, port, tài khoản, mật khẩu hoặc quy định.
+- PHẢI xử lý câu hỏi ngoài phạm vi bằng policy deterministic nhẹ nhàng và điều hướng về nghiệp vụ
+  nội bộ; KHÔNG ĐƯỢC spam một câu từ chối máy móc khi user hỏi liên tiếp.
 - PHẢI citation bằng `SOURCE_n` khớp với nguồn trả về.
 
 ## Storage, delete and reindex

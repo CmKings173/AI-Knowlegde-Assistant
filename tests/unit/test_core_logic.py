@@ -19,8 +19,12 @@ from app.rag.lexical import LexicalIndex
 from app.rag.pipeline import (
     CLARIFY_RESPONSE,
     CONVERSATIONAL_RESPONSE,
+    NO_DOCUMENTS_SELECTED_RESPONSE,
+    OUT_OF_SCOPE_EMOTION_RESPONSE,
+    OUT_OF_SCOPE_LEISURE_RESPONSE,
     OUT_OF_SCOPE_RESPONSE,
     REFUSAL,
+    REPEATED_OUT_OF_SCOPE_RESPONSE,
     RAGPipeline,
     parse_model_output,
     parse_query_rewrite_output,
@@ -157,6 +161,15 @@ def test_fact_guard_normalizes_vietnamese_day_and_time_aliases() -> None:
 
     assert facts.days == {"SAT", "MON"}
     assert facts.times == {"08:00", "12:00", "13:30"}
+
+
+def test_fact_guard_normalizes_vietnamese_gio_phut_format() -> None:
+    facts = extract_facts(
+        "Th\u1eddi gian l\u00e0m vi\u1ec7c t\u1eeb 8 gi\u1edd 00 s\u00e1ng "
+        "\u0111\u1ebfn 17 gi\u1edd 30 chi\u1ec1u. H\u1ecdp l\u00fac 5h30 chi\u1ec1u."
+    )
+
+    assert facts.times == {"08:00", "17:30"}
 
 
 def test_fact_guard_rejects_day_not_supported_by_context() -> None:
@@ -436,6 +449,7 @@ def test_intent_router_detects_out_of_scope_messages() -> None:
     assert router.classify("hom nay toi buon").intent == Intent.OUT_OF_SCOPE
     assert router.classify("minh stress qua").intent == Intent.OUT_OF_SCOPE
     assert router.classify("hay toi nen tu tu").intent == Intent.OUT_OF_SCOPE
+    assert router.classify("huong dan toi di").intent == Intent.CLARIFY
     cat_decision = router.classify(
         "k\u1ec3 t\u00ean c\u00e1c gi\u1ed1ng m\u00e8o \u1edf Vi\u1ec7t Nam"
     )
@@ -720,8 +734,63 @@ async def test_pipeline_refuses_personal_emotional_query_without_llm(tmp_path: P
     result = await pipeline.answer("hom nay toi buon")
 
     assert result["status"] == "out_of_scope"
-    assert result["answer"] == OUT_OF_SCOPE_RESPONSE
+    assert result["answer"] == OUT_OF_SCOPE_EMOTION_RESPONSE
     assert result["citations"] == []
+    assert result["retrieval"] == {
+        "candidate_count": 0,
+        "context_count": 0,
+        "reranker_used": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_pipeline_uses_distinct_out_of_scope_responses_by_subtype(
+    tmp_path: Path,
+) -> None:
+    class FailRetriever:
+        async def retrieve(self, query, filters=None):
+            raise AssertionError("retriever should not be called")
+
+    class FailLLM:
+        async def generate(self, system_prompt: str, user_prompt: str) -> str:
+            raise AssertionError("llm should not be called")
+
+    pipeline = RAGPipeline(Settings(documents_dir=tmp_path), FailRetriever(), FailLLM())
+
+    leisure = await pipeline.answer("toi muon di choi")
+    repeated = await pipeline.answer(
+        "toi chan qua",
+        history=[
+            {"role": "assistant", "content": OUT_OF_SCOPE_EMOTION_RESPONSE},
+            {"role": "assistant", "content": OUT_OF_SCOPE_LEISURE_RESPONSE},
+        ],
+    )
+
+    assert leisure["status"] == "out_of_scope"
+    assert leisure["answer"] == OUT_OF_SCOPE_LEISURE_RESPONSE
+    assert repeated["status"] == "out_of_scope"
+    assert repeated["answer"] == REPEATED_OUT_OF_SCOPE_RESPONSE
+
+
+@pytest.mark.asyncio
+async def test_pipeline_clarifies_when_no_documents_are_selected(tmp_path: Path) -> None:
+    class FailRetriever:
+        async def retrieve(self, query, filters=None):
+            raise AssertionError("retriever should not be called")
+
+    class FailLLM:
+        async def generate(self, system_prompt: str, user_prompt: str) -> str:
+            raise AssertionError("llm should not be called")
+
+    pipeline = RAGPipeline(Settings(documents_dir=tmp_path), FailRetriever(), FailLLM())
+
+    result = await pipeline.answer(
+        "Outlook khong gui duoc mail",
+        filters=RetrievalFilters(document_scope="selected", document_ids=[]),
+    )
+
+    assert result["status"] == "clarify"
+    assert result["answer"] == NO_DOCUMENTS_SELECTED_RESPONSE
     assert result["retrieval"] == {
         "candidate_count": 0,
         "context_count": 0,
@@ -1765,6 +1834,59 @@ async def test_pipeline_retries_when_answer_adds_unsupported_day(
     assert "th\u1ee9 7" in result["answer"].lower()
     assert len(llm.calls) == 2
     assert "unsupported_day:SUN" in llm.calls[1]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_allows_fact_supported_by_full_context_when_citation_is_incomplete(
+    tmp_path: Path,
+) -> None:
+    class FakeRetriever:
+        async def retrieve(self, query, filters=None):
+            return RetrievalResult(
+                chunks=[
+                    _section_chunk(
+                        "M\u1ee5c \u0111\u00edch c\u1ee7a N\u1ed9i quy l\u00e0 gi\u00fap "
+                        "nh\u00e2n vi\u00ean t\u1eadp trung v\u00e0o c\u00f4ng vi\u1ec7c.",
+                        ["N\u1ed9i quy", "M\u1ee5c \u0111\u00edch"],
+                        0,
+                    ),
+                    _section_chunk(
+                        "Th\u1eddi gian l\u00e0m vi\u1ec7c t\u1eeb 8h00 s\u00e1ng "
+                        "\u0111\u1ebfn 17h30 chi\u1ec1u t\u1eeb th\u1ee9 2 "
+                        "\u0111\u1ebfn th\u1ee9 6.",
+                        ["N\u1ed9i quy", "Th\u1eddi gian l\u00e0m vi\u1ec7c"],
+                        1,
+                    ),
+                ],
+                candidate_count=2,
+                reranker_used=False,
+            )
+
+    class FakeLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def generate(self, system_prompt: str, user_prompt: str) -> str:
+            self.calls += 1
+            return (
+                '{"status": "answered", "answer": "Th\u1eddi gian l\u00e0m '
+                'vi\u1ec7c t\u1eeb 8:00 \u0111\u1ebfn 17:30. [SOURCE_1]", '
+                '"sources": ["SOURCE_1"]}'
+            )
+
+    llm = FakeLLM()
+    pipeline = RAGPipeline(
+        Settings(documents_dir=tmp_path, final_context_top_n=2),
+        FakeRetriever(),
+        llm,
+    )
+
+    result = await pipeline.answer("th\u1eddi gian l\u00e0m vi\u1ec7c")
+
+    assert result["status"] == "answered"
+    assert "17:30" in result["answer"]
+    assert result["trace"]["fact_guard_error"] is None
+    assert llm.calls == 1
 
 
 @pytest.mark.asyncio

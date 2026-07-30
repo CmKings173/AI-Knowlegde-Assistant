@@ -24,6 +24,7 @@ class ChatFilters(BaseModel):
     domains: list[str] = Field(default_factory=list)
     language: str | None = None
     include_parent_chunks: bool | None = None
+    document_scope: Literal["all", "selected"] = "all"
 
     def to_retrieval_filters(self) -> RetrievalFilters:
         return RetrievalFilters(
@@ -32,6 +33,7 @@ class ChatFilters(BaseModel):
             domains=self.domains,
             language=self.language,
             include_parent_chunks=self.include_parent_chunks,
+            document_scope=self.document_scope,
         )
 
 

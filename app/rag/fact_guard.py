@@ -16,7 +16,8 @@ DAY_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 TIME_PATTERN = re.compile(
-    r"(?<!\d)(\d{1,2})\s*(?:h|:|gio)\s*(\d{1,2})?(?:\s*(sang|chieu|toi))?",
+    r"(?<!\d)(\d{1,2})\s*(?:h|:|gio)\s*(\d{1,2})?"
+    r"(?:\s*phut)?(?:\s*(sang|chieu|toi))?",
     re.IGNORECASE,
 )
 SUPPORT_TERM_ALIASES: dict[str, tuple[str, ...]] = {

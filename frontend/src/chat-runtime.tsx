@@ -46,12 +46,11 @@ export function ChatRuntimeProvider({
 
       const shouldContinue = Boolean(continuation && isContinuePrompt(question));
       const history = buildHistory(messages);
-      const filters: ChatFilters | undefined = selectedDocumentIds.length
-        ? {
-            document_ids: selectedDocumentIds,
-            include_parent_chunks: false
-          }
-        : undefined;
+      const filters: ChatFilters = {
+        document_scope: "selected",
+        document_ids: selectedDocumentIds,
+        include_parent_chunks: false
+      };
 
       const userMessage: AppMessage = {
         id: makeId("user"),

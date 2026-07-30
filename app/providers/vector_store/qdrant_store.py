@@ -8,7 +8,7 @@ from qdrant_client.http import models
 from app.config import Settings
 from app.domain.enums import KnowledgeType
 from app.domain.exceptions import VectorStoreError
-from app.domain.models import Chunk, RetrievalFilters
+from app.domain.models import Chunk, RetrievalFilters, filters_select_no_documents
 from app.providers.vector_store.base import VectorStore
 
 
@@ -56,6 +56,8 @@ class QdrantVectorStore(VectorStore):
         top_k: int,
         filters: RetrievalFilters | None = None,
     ) -> list[Chunk]:
+        if filters_select_no_documents(filters):
+            return []
         if not await self._collection_exists():
             return []
         response = await self.client.query_points(
