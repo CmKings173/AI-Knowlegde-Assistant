@@ -230,6 +230,9 @@ knowledge_query, clarify, out_of_scope.
 Quy tac:
 - Chon "knowledge_query" khi cau hoi can tra cuu noi quy, van hoa, chinh sach, SOP, FAQ, NAS,
   Outlook, email, Windows, Chrome, bookmark, browser hoac troubleshooting.
+- Cac cau noi doi thuong ve HR/chinh sach noi bo nhu xin nghi, nghi phep, nghi viec,
+  vang mat, tu y nghi, ban giao khi nghi viec, ky luat, thoi gian lam viec, quan ly truc tiep
+  phai duoc coi la "knowledge_query" neu co kha nang tra cuu tai lieu noi bo.
 - Chon "broad_section_query" khi nguoi dung muon liet ke/tong hop day du mot phan/muc.
 - Chon "follow_up" khi cau hoi phu thuoc vao lich su hoi thoai.
 - Voi follow-up bat be nguon/do chac chan, subtype la "source_challenge".
@@ -237,6 +240,8 @@ Quy tac:
 - Voi "tiep di/xem tiep" sau cau tra loi dai, subtype la "continuation".
 - Chon "clarify" khi cau hoi co ve trong pham vi noi bo nhung thieu doi tuong ro rang.
 - Chon "out_of_scope" chi khi chu de ro rang ngoai kho kien thuc noi bo.
+- Khi khong chac mot cau hoi co phai nghiep vu noi bo khong, uu tien "knowledge_query"
+  hoac "clarify", khong day sang "conversational_llm".
 """
 
 

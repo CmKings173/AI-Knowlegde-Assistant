@@ -6,6 +6,7 @@ from app.providers.embeddings.base import EmbeddingProvider
 from app.providers.vector_store.base import VectorStore
 from app.rag.hybrid_search import reciprocal_rank_fusion
 from app.rag.lexical import LexicalIndex
+from app.rag.reranker import Reranker
 
 
 class Retriever:
@@ -14,10 +15,12 @@ class Retriever:
         settings: Settings,
         embedding_provider: EmbeddingProvider,
         vector_store: VectorStore,
+        reranker: Reranker | None = None,
     ) -> None:
         self.settings = settings
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
+        self.reranker = reranker
         self.lexical_index = LexicalIndex()
         self._loaded = False
 
@@ -62,4 +65,7 @@ class Retriever:
             chunk = by_id[chunk_id]
             chunk.score = score
             ranked.append(chunk)
+        if self.settings.reranker_enabled and self.reranker is not None:
+            ranked = await self.reranker.rerank(query, ranked, self.settings.rerank_top_k)
+            return RetrievalResult(chunks=ranked, candidate_count=len(ranked), reranker_used=True)
         return RetrievalResult(chunks=ranked, candidate_count=len(ranked), reranker_used=False)

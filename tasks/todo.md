@@ -1,17 +1,14 @@
-# Todo: RAG Router, Faithfulness And Citation Hardening
+# Todo: Generic Evidence-Gated Retrieval
 
-- [x] Add regression tests for out-of-scope cat questions.
-- [x] Add regression tests for out-of-scope travel planning questions.
-- [x] Add regression tests for Chrome/bookmark knowledge routing.
-- [x] Add regression tests for NAS mobile/detail follow-up routing.
-- [x] Add regression tests for unsupported mobile/app claims in cited answers.
-- [x] Add regression tests for frontend citation marker conversion and source labels.
-- [x] Fix intent routing and follow-up detection.
-- [x] Add Chrome/bookmark terms to internal knowledge routing.
-- [x] Add soft refusal and redirection for non-internal topics.
-- [x] Strengthen query rewrite prompt.
-- [x] Improve lexical retrieval with section and heading text.
-- [x] Extend fact guard with critical support terms.
-- [x] Fix frontend citation marker/label rendering.
-- [x] Run lint, unit tests, and frontend build.
-- [x] Perform code review pass.
+- [x] Add fact guard test for unsupported manager-approval/reason procedural claims.
+- [x] Add pipeline regression for hallucinated procedural answer with weak context.
+- [x] Add relevance gate tests for weak vs supported procedural/policy evidence.
+- [x] Add retriever test proving configured reranker is used.
+- [x] Extend `fact_guard.py` with generic procedural support terms.
+- [x] Add `relevance.py` evidence gate.
+- [x] Wire optional HTTP reranker through `Retriever` and API deps.
+- [x] Update `.env.example` reranker config.
+- [x] Add ADR for generic evidence-gated RAG.
+- [x] Update RAG/provider progress docs.
+- [x] Run focused tests.
+- [x] Run full backend tests, lint, harness check, and frontend build.
