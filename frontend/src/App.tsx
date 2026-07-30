@@ -331,6 +331,7 @@ function SourceBlocks({
                   className="citation-image-button"
                   key={image.url ?? image.file_name}
                   type="button"
+                  aria-label={`Xem ảnh ${image.file_name ?? "tài liệu"}`}
                   onClick={() => onPreviewImage(image)}
                 >
                   <img
@@ -385,7 +386,12 @@ function ImagePreview({
       onClick={onClose}
     >
       <div className="image-preview" onClick={(event) => event.stopPropagation()}>
-        <button className="image-preview-close" type="button" onClick={onClose}>
+        <button
+          className="image-preview-close"
+          type="button"
+          aria-label="Đóng ảnh xem trước"
+          onClick={onClose}
+        >
           <X size={18} />
         </button>
         <img
@@ -422,6 +428,7 @@ function Composer() {
     >
       <textarea
         className="composer-input"
+        aria-label="Nhập câu hỏi"
         placeholder={"Nh\u1eadp c\u00e2u h\u1ecfi v\u1ec1 n\u1ed9i quy, SOP, NAS, Outlook..."}
         rows={1}
         value={value}
@@ -434,7 +441,7 @@ function Composer() {
           }
         }}
       />
-      <button className="send-button" disabled={!canSend} type="submit">
+      <button className="send-button" disabled={!canSend} type="submit" aria-label="Gửi câu hỏi">
         <ArrowUp size={18} />
       </button>
     </form>
@@ -467,17 +474,23 @@ function DocumentPanel({
     <section className="documents-card">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Knowledge Base</p>
-          <h3>{"T\u00e0i li\u1ec7u"}</h3>
+          <p className="eyebrow">Kho tri thức</p>
+          <h2>{"T\u00e0i li\u1ec7u"}</h2>
         </div>
-        <button className="icon-button" type="button" onClick={onRefresh} disabled={isLoading}>
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Làm mới danh sách tài liệu"
+          onClick={onRefresh}
+          disabled={isLoading}
+        >
           {isLoading ? <Loader2 className="spin" size={16} /> : <RefreshCw size={16} />}
         </button>
       </div>
 
       <label className="upload-box">
         <Upload size={18} />
-        <span>{isUploading ? "\u0110ang ingest..." : "Upload .docx, .md, .txt"}</span>
+        <span>{isUploading ? "\u0110ang ingest…" : "Tải lên .docx, .md, .txt"}</span>
         <input
           type="file"
           accept=".docx,.md,.txt"
@@ -492,11 +505,11 @@ function DocumentPanel({
             setUploadMessage(null);
             try {
               await uploadDocument(file);
-              setUploadMessage(`\u0110\u00e3 ingest ${file.name}`);
+              setUploadMessage(`Đã xử lý ${file.name}`);
               onRefresh();
             } catch (uploadError) {
               setUploadMessage(
-                uploadError instanceof Error ? uploadError.message : "Upload th\u1ea5t b\u1ea1i."
+                uploadError instanceof Error ? uploadError.message : "Tải lên thất bại."
               );
             } finally {
               setIsUploading(false);
@@ -519,15 +532,19 @@ function DocumentPanel({
       </div>
 
       {uploadMessage ? (
-        <div className="notice">
+        <div className="notice" role="status" aria-live="polite">
           <span>{uploadMessage}</span>
-          <button type="button" onClick={() => setUploadMessage(null)}>
+          <button type="button" aria-label="Đóng thông báo" onClick={() => setUploadMessage(null)}>
             <X size={14} />
           </button>
         </div>
       ) : null}
 
-      {error ? <p className="error-text">{error}</p> : null}
+      {error ? (
+        <p className="error-text" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="document-list">
         {documents.length ? (
@@ -542,7 +559,7 @@ function DocumentPanel({
               <span>
                 <strong>{document.original_name}</strong>
                 <small>
-                  {`${document.chunk_count} chunks \u00b7 ${document.image_count} h\u00ecnh`}
+                  {`${document.chunk_count} đoạn · ${document.image_count} hình`}
                 </small>
               </span>
             </label>

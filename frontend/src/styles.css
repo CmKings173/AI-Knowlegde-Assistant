@@ -37,6 +37,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.upload-box:focus-within {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
@@ -85,7 +93,7 @@ button:disabled {
 
 .header-block h1,
 .topbar h2,
-.section-heading h3,
+.section-heading h2,
 .empty-state h3 {
   margin: 0;
 }
@@ -183,6 +191,7 @@ button:disabled {
 }
 
 .upload-box {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -197,7 +206,14 @@ button:disabled {
 }
 
 .upload-box input {
-  display: none;
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.upload-box input:disabled {
+  cursor: not-allowed;
 }
 
 .scope-note {
