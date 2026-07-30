@@ -1,28 +1,41 @@
 # Provider Architecture
 
-Providers isolate external/runtime dependencies from the application core.
+Providers cô lập dependency ngoài/runtime khỏi core ingestion và RAG logic.
 
-## LLM providers
+## Trách nhiệm
 
-- `ollama` — local model for answer generation.
-- `openai` — OpenAI-compatible chat completions.
-- `gemini` — Gemini generation API.
-- `echo` — fake provider for offline smoke tests.
+- Cung cấp LLM generation qua interface chung.
+- Cung cấp embedding generation qua interface chung.
+- Cung cấp vector store operations qua interface chung.
+- Chuyển lỗi provider thành domain-specific exceptions khi phù hợp.
 
-## Embedding providers
+## Giao diện
 
-- `openai` — `text-embedding-3-small` by default.
-- `gemini` — `gemini-embedding-001` by default.
-- `hash` — deterministic local embedding for tests/smoke checks only.
+- `LLMProvider.generate(system_prompt, user_prompt)`.
+- `EmbeddingProvider.embed_texts(texts)`.
+- `VectorStore.ensure_collection(vector_size)`.
+- `VectorStore.upsert_chunks(chunks, vectors)`.
+- `VectorStore.search(vector, top_k, filters=None)`.
+- `VectorStore.delete_document(document_id)`.
+- `VectorStore.list_chunks(limit=10000)`.
 
-## Vector store
+## Phụ thuộc
 
-- Qdrant stores vectors plus chunk payload metadata.
-- Search supports metadata filters for document, knowledge type, domain, language,
-  and parent/child chunk selection.
+- Ollama API cho local LLM.
+- OpenAI-compatible API cho LLM/embedding.
+- Gemini API cho LLM/embedding.
+- Qdrant service cho vector search/index.
+- Hash/Echo fake providers cho smoke tests.
 
-## Constraints
+## Current providers
 
-- Provider failures should raise domain-specific exceptions.
-- Do not make core ingestion or RAG logic depend on a specific provider.
-- `hash` and `echo` are not production-quality model behavior.
+- LLM: `ollama`, `openai`, `gemini`, `echo`.
+- Embedding: `openai`, `gemini`, `hash`.
+- Vector store: `qdrant`.
+
+## Ràng buộc
+
+- PHẢI giữ core logic không phụ thuộc provider cụ thể.
+- KHÔNG ĐƯỢC dùng `hash` hoặc `echo` như production-quality model behavior.
+- PHẢI propagate lỗi Qdrant khi delete/reindex cần consistency.
+- TEI/Infinity self-host options mới được document trong `.env.example`, chưa implement.

@@ -5,6 +5,7 @@ import re
 from app.domain.models import Citation
 
 SOURCE_PATTERN = re.compile(r"SOURCE_\d+")
+CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
 
 def valid_citation_ids(citations: list[Citation]) -> set[str]:
@@ -48,6 +49,10 @@ def has_refusal_text(answer: str) -> bool:
         or "câu hỏi này nằm ngoài phạm vi kho kiến thức nội bộ hiện có" in lowered
         or "không có nguồn phù hợp trong context" in lowered
     )
+
+
+def contains_disallowed_cjk(text: str, max_chars: int = 0) -> bool:
+    return len(CJK_PATTERN.findall(text)) > max_chars
 
 
 def should_refuse(candidate_count: int, best_score: float, min_score: float) -> bool:

@@ -33,6 +33,7 @@ from app.rag.prompts import (
     build_user_prompt,
 )
 from app.rag.response_validator import (
+    contains_disallowed_cjk,
     filter_citation_ids,
     has_refusal_text,
     remove_unknown_citations,
@@ -324,6 +325,11 @@ def test_refusal_detection_uses_current_vietnamese_messages() -> None:
     assert has_refusal_text("Câu hỏi này nằm ngoài phạm vi kho kiến thức nội bộ hiện có.")
 
 
+def test_response_validator_rejects_cjk_output() -> None:
+    assert contains_disallowed_cjk("Xin chao, \u6211\u53ef\u4ee5 giup ban.")
+    assert not contains_disallowed_cjk("Xin chao, toi co the ho tro ban.")
+
+
 @pytest.mark.asyncio
 async def test_ollama_embedding_provider_uses_batch_embed_endpoint(monkeypatch) -> None:
     class FakeResponse:
@@ -368,6 +374,7 @@ def test_intent_router_detects_conversational_messages() -> None:
     assert router.classify("hello").intent == Intent.CONVERSATIONAL_LLM
     assert router.classify("xin chao").intent == Intent.CONVERSATIONAL_LLM
     assert router.classify("ban la ai").intent == Intent.CONVERSATIONAL_LLM
+    assert router.classify("toi thich an pho").intent == Intent.OUT_OF_SCOPE
     assert router.classify("xin chao", has_history=True).intent == Intent.FOLLOW_UP
 
 
@@ -426,6 +433,8 @@ def test_intent_router_detects_out_of_scope_messages() -> None:
     )
     assert router.classify("co toi quan li tai chinh kem qua").intent == Intent.OUT_OF_SCOPE
     assert router.classify("toi no 100tr va dang tim cach tra").intent == Intent.OUT_OF_SCOPE
+    assert router.classify("hom nay toi buon").intent == Intent.OUT_OF_SCOPE
+    assert router.classify("minh stress qua").intent == Intent.OUT_OF_SCOPE
     assert router.classify("hay toi nen tu tu").intent == Intent.OUT_OF_SCOPE
     cat_decision = router.classify(
         "k\u1ec3 t\u00ean c\u00e1c gi\u1ed1ng m\u00e8o \u1edf Vi\u1ec7t Nam"
@@ -697,6 +706,30 @@ async def test_pipeline_uses_llm_without_retrieval_for_greeting(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_pipeline_refuses_personal_emotional_query_without_llm(tmp_path: Path) -> None:
+    class FailRetriever:
+        async def retrieve(self, query, filters=None):
+            raise AssertionError("retriever should not be called")
+
+    class FailLLM:
+        async def generate(self, system_prompt: str, user_prompt: str) -> str:
+            raise AssertionError("llm should not be called")
+
+    pipeline = RAGPipeline(Settings(documents_dir=tmp_path), FailRetriever(), FailLLM())
+
+    result = await pipeline.answer("hom nay toi buon")
+
+    assert result["status"] == "out_of_scope"
+    assert result["answer"] == OUT_OF_SCOPE_RESPONSE
+    assert result["citations"] == []
+    assert result["retrieval"] == {
+        "candidate_count": 0,
+        "context_count": 0,
+        "reranker_used": False,
+    }
+
+
+@pytest.mark.asyncio
 async def test_pipeline_uses_llm_for_identity_question(tmp_path: Path) -> None:
     class FailRetriever:
         async def retrieve(self, query, filters=None):
@@ -754,15 +787,45 @@ async def test_pipeline_streams_conversational_tokens(tmp_path: Path) -> None:
         "progress",
         "progress",
         "delta",
-        "delta",
         "final",
     ]
-    assert events[2]["data"] == {"text": "M\u00ecnh "}
+    assert events[2]["data"] == {
+        "text": "M\u00ecnh s\u1ebd ki\u1ec3m tra l\u1ea1i theo ngu\u1ed3n."
+    }
     assert events[-1]["data"]["status"] == "conversational"
     assert events[-1]["data"]["answer"] == (
         "M\u00ecnh s\u1ebd ki\u1ec3m tra l\u1ea1i theo ngu\u1ed3n."
     )
     assert events[-1]["data"]["trace"]["branch"] == "conversation_stream"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_stream_buffers_and_blocks_cjk_tokens(tmp_path: Path) -> None:
+    class FailRetriever:
+        async def retrieve(self, query, filters=None):
+            raise AssertionError("streamed follow-up reply should not retrieve")
+
+    class FakeLLM:
+        async def stream_generate(self, system_prompt: str, user_prompt: str):
+            del system_prompt, user_prompt
+            yield "R\u1ea5t ti\u1ebfc, "
+            yield "\u6211\u53ef\u4ee5 giup ban."
+
+    pipeline = RAGPipeline(Settings(documents_dir=tmp_path), FailRetriever(), FakeLLM())
+
+    events = [
+        event
+        async for event in pipeline.answer_stream(
+            "co chac khong",
+            history=[{"role": "assistant", "content": "Noi dung truoc. [SOURCE_1]"}],
+        )
+    ]
+
+    delta_text = "".join(
+        event["data"]["text"] for event in events if event["event"] == "delta"
+    )
+    assert "\u6211" not in delta_text
+    assert events[-1]["data"]["answer"] == OUT_OF_SCOPE_RESPONSE
 
 
 @pytest.mark.asyncio

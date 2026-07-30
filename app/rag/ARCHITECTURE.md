@@ -1,6 +1,33 @@
 # RAG Architecture
 
-The RAG layer turns user questions into grounded answers with citations.
+RAG service biến câu hỏi người dùng thành câu trả lời grounded với citation.
+
+## Trách nhiệm
+
+- Normalize query.
+- Retrieve candidates bằng dense search và BM25.
+- Apply metadata filtering trước hybrid search.
+- Fuse rankings bằng RRF.
+- Build bounded context.
+- Build citations và image metadata.
+- Gọi LLM với prompt contract.
+- Validate/remove unknown citations.
+
+## Giao diện
+
+- `RAGPipeline.answer(question, filters=None)`.
+- `Retriever.retrieve(query, filters=None)`.
+- `build_context(chunks, max_tokens)`.
+- `build_user_prompt(question, context)`.
+- `build_citations(chunks, image_lookup=None)`.
+
+## Phụ thuộc
+
+- Embedding provider để embed query.
+- Qdrant vector store để dense search.
+- BM25 lexical index để keyword search.
+- LLM provider để generate answer.
+- Document image metadata để trả citation images.
 
 ## Retrieval flow
 
@@ -19,17 +46,17 @@ question
 
 ## Prompt contract
 
-The LLM receives:
+LLM nhận:
 
-- system prompt with grounding and refusal rules;
-- user prompt containing `CONTEXT` blocks with `SOURCE_n` IDs;
+- system prompt với grounding/refusal rules;
+- user prompt chứa `CONTEXT` blocks với `SOURCE_n` IDs;
 - user question.
 
-Context is untrusted document content. It must not override the system prompt.
+CONTEXT là dữ liệu không tin cậy và không được override system prompt.
 
-## Constraints
+## Ràng buộc
 
-- Keep final context bounded with `FINAL_CONTEXT_TOP_N` and `MAX_CONTEXT_TOKENS`.
-- Metadata filters apply before hybrid search, not after.
-- Reranker is currently a placeholder; RRF top-k is the active behavior.
-- Refuse when there is insufficient retrieved evidence.
+- PHẢI giới hạn final context bằng `FINAL_CONTEXT_TOP_N` và `MAX_CONTEXT_TOKENS`.
+- PHẢI apply metadata filters trước hybrid search.
+- KHÔNG ĐƯỢC bịa nếu context không đủ.
+- Reranker hiện là placeholder; behavior chính là RRF top-k.

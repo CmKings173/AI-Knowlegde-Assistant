@@ -2,6 +2,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
+SERVICE_DIRS = [
+    "app/api",
+    "app/ingestion",
+    "app/rag",
+    "app/providers",
+    "frontend",
+    "docker",
+]
+
 
 def read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
@@ -13,6 +22,7 @@ def test_agent_landing_page_answers_fresh_session_questions() -> None:
     for required in [
         "What this system is",
         "How the repo is organized",
+        "Tech stack versions",
         "How to run it",
         "How to verify it",
         "Current progress",
@@ -20,14 +30,24 @@ def test_agent_landing_page_answers_fresh_session_questions() -> None:
         assert required in agents
 
 
+def test_constraints_use_explicit_vietnamese_hard_rule_language() -> None:
+    constraints = read("CONSTRAINTS.md")
+
+    assert "PHẢI" in constraints
+    assert "KHÔNG ĐƯỢC" in constraints
+
+
+def test_service_harness_files_exist() -> None:
+    for service_dir in SERVICE_DIRS:
+        assert (ROOT / service_dir / "ARCHITECTURE.md").is_file()
+        assert (ROOT / service_dir / "PROGRESS.md").is_file()
+
+
 def test_harness_system_of_record_files_exist() -> None:
     for relative_path in [
+        "AGENTS.md",
         "CONSTRAINTS.md",
         "PROGRESS.md",
-        "app/api/ARCHITECTURE.md",
-        "app/ingestion/ARCHITECTURE.md",
-        "app/rag/ARCHITECTURE.md",
-        "app/providers/ARCHITECTURE.md",
         "docs/decisions/ADR-001-agent-harness.md",
     ]:
         assert (ROOT / relative_path).is_file()

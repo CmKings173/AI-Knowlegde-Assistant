@@ -1,28 +1,37 @@
 # API Architecture
 
-The API layer exposes the stable interface for UI, scripts, and external clients.
+API service expose giao diện ổn định cho frontend, scripts và các client nội bộ.
 
-## Responsibilities
+## Trách nhiệm
 
-- Validate request boundaries with Pydantic schemas.
-- Route chat, document ingestion, document list, reindex, delete, health, and debug
-  retrieval requests.
-- Keep endpoint behavior backward compatible where possible.
-- Convert API request shapes into internal domain objects.
+- Validate request boundary bằng Pydantic schemas.
+- Route chat, debug retrieval, document add/list/reindex/delete và health check.
+- Convert API request shape thành domain objects nội bộ.
+- Giữ endpoint behavior backward compatible khi có thể.
+- Serve extracted document images qua endpoint có validate path.
 
-## Current endpoints
+## Giao diện
 
 - `POST /api/v1/chat`
 - `POST /api/v1/debug/retrieve`
 - `GET /api/v1/documents`
 - `POST /api/v1/documents`
+- `POST /api/v1/documents/upload`
 - `POST /api/v1/documents/{document_id}/reindex`
 - `DELETE /api/v1/documents/{document_id}`
+- `GET /api/v1/documents/{document_id}/images/{file_name}`
 - `GET /health`
 
-## Constraints
+## Phụ thuộc
 
-- `ChatRequest.filters` is optional and must remain backward compatible.
-- Upload must trigger ingestion, not just file storage.
-- Debug endpoints must respect `DEBUG_ENDPOINTS_ENABLED`.
-- Do not leak secrets, raw internal errors, or unintended storage paths.
+- `app.ingestion` để ingest/reindex documents.
+- `app.rag` để trả lời chat và debug retrieve.
+- `app.providers` để dùng embedding/vector store/LLM.
+- `app.documents` để đọc/ghi manifest, image metadata và storage.
+
+## Ràng buộc
+
+- PHẢI upload bằng ingestion pipeline, không được store-only.
+- PHẢI giữ `ChatRequest.filters` optional để không phá client cũ.
+- PHẢI tôn trọng `DEBUG_ENDPOINTS_ENABLED`.
+- KHÔNG ĐƯỢC leak secret, raw internal errors hoặc unintended storage paths.

@@ -39,6 +39,7 @@ from app.rag.prompts import (
 from app.rag.query_normalizer import QueryNormalizer
 from app.rag.response_validator import (
     citation_ids_in_answer,
+    contains_disallowed_cjk,
     should_refuse,
 )
 from app.rag.retriever import Retriever
@@ -573,8 +574,10 @@ class RAGPipeline:
                     user_prompt,
                 ):
                     answer_parts.append(token)
-                    yield _stream_event("delta", {"text": token})
             answer = "".join(answer_parts).strip() or CONVERSATIONAL_RESPONSE
+            if contains_disallowed_cjk(answer):
+                answer = OUT_OF_SCOPE_RESPONSE
+            yield _stream_event("delta", {"text": answer})
             timing["total"] = int((time.perf_counter() - total_start) * 1000)
             yield _stream_event(
                 "final",
@@ -994,6 +997,9 @@ def parse_model_output(
         return _invalid("unknown_source")
 
     answer = answer.strip()
+    if contains_disallowed_cjk(answer):
+        return _invalid("disallowed_language")
+
     answer_sources = citation_ids_in_answer(answer)
     if answer_sources != sources:
         return _invalid("source_mismatch")

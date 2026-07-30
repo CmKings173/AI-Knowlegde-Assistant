@@ -131,7 +131,7 @@ class IntentRouter:
                 FollowUpSubtype.CASUAL_FOLLOW_UP,
             )
 
-        return IntentDecision(Intent.CONVERSATIONAL_LLM, 0.55, "short_non_question_message")
+        return IntentDecision(Intent.OUT_OF_SCOPE, 0.6, "non_domain_statement")
 
 
 CONVERSATIONAL_TERMS = (
@@ -339,6 +339,27 @@ OUT_OF_SCOPE_TERMS = (
     "tra no",
     "vay tien",
     "100tr",
+    "toi buon",
+    "minh buon",
+    "em buon",
+    "anh buon",
+    "chi buon",
+    "toi thay buon",
+    "minh thay buon",
+    "hom nay toi buon",
+    "hom nay minh buon",
+    "toi chan",
+    "minh chan",
+    "em chan",
+    "toi met",
+    "minh met",
+    "toi stress",
+    "minh stress",
+    "toi co don",
+    "minh co don",
+    "tam su",
+    "an ui",
+    "tu van tam ly",
     "tu tu",
     "tu sat",
     "muon chet",
