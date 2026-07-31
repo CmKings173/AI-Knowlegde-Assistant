@@ -1,223 +1,251 @@
-# Implementation Plan: Guarded Vietnamese Streaming
+# Implementation Plan: RAG End-to-End Evaluation Harness
 
 ## Overview
 
-Implement the approved design in
-`docs/superpowers/specs/2026-07-31-guarded-vietnamese-streaming-design.md`.
-Conversation responses will validate a short prefix before emitting SSE deltas,
-continue validating a rolling window, retry once before the first delta, and use
-a Vietnamese fallback when validation still fails. RAG structured generation,
-retrieval, citations, and the current hybrid router remain unchanged.
+Implement the approved spec in
+`docs/superpowers/specs/2026-07-31-rag-end-to-end-evaluation-design.md`.
+The change extends the existing retrieval-only evaluator into a layered
+evaluation system that can run the production RAG pipeline and classify failures
+by first bad stage: router, retrieval, evidence, generation, or validation.
 
 ## Architecture Decisions
 
-- `VietnameseLanguageGuard` is deterministic and adds no dependency or model.
-- Conversation streaming moves to a focused executor instead of adding another
-  branch to the 1,600-line pipeline.
-- RAG continues buffering structured JSON; only Conversation uses guarded streaming.
-- The retry prompt never includes raw invalid model output.
-- Existing SSE event schemas remain backward compatible.
-- Timing starts before routing and is passed through the executor.
-- Hybrid context-dependency routing is explicitly deferred.
+- Keep `tests/evaluation/rag_cases.json` as the canonical dataset and preserve
+  compatibility with `scripts/evaluate_retrieval.py`.
+- Add optional end-to-end expectation fields instead of replacing the old
+  `expected` block.
+- Put deterministic scoring and failure classification in `app/rag/evaluation.py`
+  so unit tests do not need Qdrant or Ollama.
+- Add `scripts/evaluate_rag.py` as the live GX10 runner that calls production
+  `RAGPipeline`.
+- Do not add Langfuse, Ragas, DeepEval, Redis, a judge model, or a reranker in
+  this phase.
+- Generated reports live under `data/evaluation/` and are not versioned.
 
 ## Dependency Graph
 
 ```text
-LanguageDecision + VietnameseLanguageGuard
--> guarded ConversationStreamExecutor
--> RAGPipeline/SSE integration
--> frontend/API regression verification
--> architecture/progress documentation
--> final multi-axis review
+Dataset model extensions
+-> deterministic text normalization + expectation checks
+-> per-case e2e result + first-failure classifier
+-> aggregate metrics/report writer
+-> live evaluate_rag.py runner
+-> dataset coverage upgrade
+-> documentation/progress update
+-> final quality gate
 ```
 
-## Task 1: Deterministic Vietnamese language guard
+## Task 1: Extend evaluation dataset contract
 
-**Description:** Add a pure guard that validates prefixes, rolling windows, and
-complete responses while allowing internal-product names and technical literals.
+**Description:** Extend `EvaluationCase` parsing so existing retrieval-only cases
+still load, while optional end-to-end fields are validated when present.
 
 **Acceptance criteria:**
 
-- [ ] Vietnamese text and short technical messages are accepted.
-- [ ] CJK, mixed Vietnamese/CJK, and sufficiently long English output are rejected.
-- [ ] URLs, email, IP, port, acronym, and code fragments do not create false positives.
+- [ ] Existing `tests/evaluation/rag_cases.json` loads unchanged.
+- [ ] Cases can include `history`, `document_scope`, `document_ids`,
+      `expected_capability`, `expected_intent`, `expected_outcome`,
+      `expected_documents`, `expected_sections`, `required_fact_groups`,
+      `forbidden_fact_groups`, and `citation_required`.
+- [ ] Invalid optional fields fail with a clear `EvaluationCaseError`.
 
 **Verification:**
 
 - [ ] RED then GREEN:
-  `uv run python -m pytest tests/unit/test_language_guard.py -q`
-- [ ] Ruff passes for the new module and test.
+      `uv run python -m pytest tests/unit/test_rag_e2e_evaluation.py tests/unit/test_retrieval_evaluation.py -q`
 
 **Dependencies:** None.
 
 **Files likely touched:**
 
-- `app/rag/guards/__init__.py`
-- `app/rag/guards/language_guard.py`
-- `tests/unit/test_language_guard.py`
+- `app/rag/evaluation.py`
+- `tests/unit/test_rag_e2e_evaluation.py`
+- `tests/unit/test_retrieval_evaluation.py`
 
 **Estimated scope:** Medium, 3 files.
 
-## Task 2: Guarded conversation stream executor
+## Task 2: Add deterministic expectation scoring
 
-**Description:** Extract conversation streaming into an executor that buffers a
-30-character prefix, validates every rolling window, emits real deltas, retries
-once before the first delta, and preserves final-answer equality.
+**Description:** Add pure functions that score a final answer and trace against
+case expectations using normalized Vietnamese-friendly matching.
 
 **Acceptance criteria:**
 
-- [ ] No delta is emitted before prefix acceptance.
-- [ ] Accepted provider fragments are emitted progressively and concatenate exactly
-  to `final.answer`.
-- [ ] Invalid prefix retries once without copying raw invalid output; a second
-  failure produces the fixed Vietnamese fallback.
-- [ ] Invalid mid-stream fragments are not emitted; a safe Vietnamese notice is
-  emitted and recorded in the final trace.
+- [ ] Required fact groups support any-of matching.
+- [ ] Forbidden fact groups detect unsupported content.
+- [ ] Citation-required cases fail when no citation appears.
+- [ ] Vietnamese compliance can detect obvious CJK/English regressions by reusing
+      the existing language guard.
+- [ ] Missing optional expectations skip only related checks.
 
 **Verification:**
 
 - [ ] RED then GREEN:
-  `uv run python -m pytest tests/unit/test_conversation_stream.py -q`
-- [ ] Tests cover provider exception and async-generator cancellation.
+      `uv run python -m pytest tests/unit/test_rag_e2e_evaluation.py -q`
 
 **Dependencies:** Task 1.
 
 **Files likely touched:**
 
-- `app/rag/execution/__init__.py`
-- `app/rag/execution/conversation_stream.py`
-- `tests/unit/test_conversation_stream.py`
-- `app/rag/prompts.py`
+- `app/rag/evaluation.py`
+- `tests/unit/test_rag_e2e_evaluation.py`
 
-**Estimated scope:** Medium, 4 files.
+**Estimated scope:** Medium, 2 files.
 
-## Checkpoint A: Guard and executor
+## Task 3: Classify first failure stage
 
-- [ ] Task 1 and Task 2 focused tests pass.
-- [ ] Ruff passes.
-- [ ] No external dependency or model is added.
-- [ ] Commit guard and executor as independently reviewable increments.
-
-## Task 3: Pipeline integration and accurate SSE timing
-
-**Description:** Replace duplicated conversation-streaming branches in
-`RAGPipeline` with the executor, reuse one routing decision, pass structured
-history, and include routing in SSE timing.
+**Description:** Given expected case data, observed pipeline trace, retrieved
+candidates, selected context, and final answer checks, classify the earliest
+stage that likely failed.
 
 **Acceptance criteria:**
 
-- [ ] Production SSE routes exactly once.
-- [ ] Conversation streaming prompt includes `status`, `capability`, `subject`, and
-  `turn_kind`.
-- [ ] `timing_ms.router` measures router time and `timing_ms.total` covers the whole
-  SSE request.
-- [ ] RAG, Unsupported, Clarify, continuation, and metadata-filter behavior do not
-  change.
+- [ ] Wrong capability for an expected RAG case is classified as `router`.
+- [ ] Expected document/section absent from top-K is classified as `retrieval`.
+- [ ] Expected evidence retrieved but dropped from selected context is classified
+      as `evidence`.
+- [ ] Correct context but wrong/missing final facts is classified as `generation`.
+- [ ] Parse/literal/citation validation problems are classified as `validation`.
 
 **Verification:**
 
 - [ ] RED then GREEN:
-  `uv run python -m pytest tests/unit/test_pipeline_multistage_router.py -q`
-- [ ] Regression:
-  `uv run python -m pytest tests/unit/test_pipeline_retrieval_v2.py tests/unit/test_response_validation_v2.py -q`
+      `uv run python -m pytest tests/unit/test_rag_e2e_evaluation.py -q`
 
 **Dependencies:** Task 2.
 
 **Files likely touched:**
 
-- `app/rag/pipeline.py`
-- `app/api/deps.py`
-- `app/rag/prompts.py`
-- `tests/unit/test_pipeline_multistage_router.py`
+- `app/rag/evaluation.py`
+- `tests/unit/test_rag_e2e_evaluation.py`
 
-**Estimated scope:** Medium, 4 files.
+**Estimated scope:** Medium, 2 files.
 
-## Task 4: API and frontend SSE regression
+## Checkpoint A: Deterministic evaluator core
 
-**Description:** Verify the existing frontend consumes multiple delta events without
-duplicating the final answer and that the public API schema remains compatible.
+- [ ] Existing retrieval evaluator remains green.
+- [ ] New e2e metric and classification tests pass without Qdrant/Ollama.
+- [ ] Commit the deterministic evaluator core.
+
+## Task 4: Add live RAG evaluation runner
+
+**Description:** Add `scripts/evaluate_rag.py` that runs selected cases through
+the production pipeline, collects final answers/traces, scores each case, and
+writes JSON/Markdown reports.
 
 **Acceptance criteria:**
 
-- [ ] Multiple delta events append in order.
-- [ ] Final event updates metadata without duplicating streamed text.
-- [ ] Existing clients need no request or event-schema migration.
+- [ ] Supports `--case-id`, `--category`, and `--limit`.
+- [ ] Calls the configured production `RAGPipeline`.
+- [ ] Writes `data/evaluation/rag_e2e_report.json`.
+- [ ] Writes `data/evaluation/rag_e2e_summary.md`.
+- [ ] Fails clearly when live dependencies are unavailable.
 
 **Verification:**
 
-- [ ] Backend route tests for progress/delta/final ordering pass.
-- [ ] `npm run build` passes in `frontend/`.
-- [ ] Existing frontend static/runtime tests pass.
+- [ ] Unit-test report aggregation and command helpers without external services.
+- [ ] Manual live command on GX10:
+      `uv run python scripts/evaluate_rag.py --limit 3`
 
 **Dependencies:** Task 3.
 
 **Files likely touched:**
 
-- `tests/unit/test_frontend_copy.py`
-- `frontend/src/chat-runtime.tsx` only if a real regression is reproduced.
-- `frontend/src/types.ts` only if the existing contract is insufficient.
+- `scripts/evaluate_rag.py`
+- `app/rag/evaluation.py`
+- `tests/unit/test_rag_e2e_evaluation.py`
 
-**Estimated scope:** Small, 1-3 files.
+**Estimated scope:** Medium, 3 files.
 
-## Checkpoint B: End-to-end contract
+## Task 5: Upgrade dataset coverage safely
 
-- [ ] Conversation produces multiple deltas with a fake fragment provider.
-- [ ] No rejected fragment reaches the simulated client.
-- [ ] `final.answer` equals concatenated deltas.
-- [ ] RAG continues to produce validated final output without raw JSON streaming.
-
-## Task 5: Documentation and final review
-
-**Description:** Update architecture/progress to match the implemented behavior and
-run the repository quality gates followed by five-axis code review.
+**Description:** Add end-to-end expectations to existing cases and add a small
+set of source-reviewed regression cases. Do not invent facts that are not visible
+in checked-in/runtime processed document content.
 
 **Acceptance criteria:**
 
-- [ ] Architecture documents describe guarded streaming and fallback semantics.
-- [ ] No Critical or Required code-review findings remain.
-- [ ] Working tree is clean after atomic commits.
+- [ ] Existing categories remain covered.
+- [ ] New regressions cover GitHub, current-time, room-count, lateness,
+      leave/quit ambiguity, conversation, and language behavior.
+- [ ] Retrieval-only script still works against the upgraded dataset.
+- [ ] No production routing code depends on dataset keywords.
+
+**Verification:**
+
+- [ ] `uv run python -m pytest tests/unit/test_retrieval_evaluation.py tests/unit/test_rag_e2e_evaluation.py -q`
+- [ ] `uv run python scripts/evaluate_retrieval.py` when Qdrant is available.
+
+**Dependencies:** Task 4.
+
+**Files likely touched:**
+
+- `tests/evaluation/rag_cases.json`
+- `tests/unit/test_retrieval_evaluation.py`
+- `tests/unit/test_rag_e2e_evaluation.py`
+
+**Estimated scope:** Medium, 3 files.
+
+## Checkpoint B: Live runner ready
+
+- [ ] Deterministic unit tests pass.
+- [ ] Retrieval-only evaluator remains backward compatible.
+- [ ] Live runner can produce a report in a configured environment.
+- [ ] Commit live runner and dataset upgrade.
+
+## Task 6: Documentation and final review
+
+**Description:** Update durable project progress and run the repository quality
+gate. Record any known limitation, especially whether live GX10 evaluation was
+run in this environment or must be run by the user on GX10.
+
+**Acceptance criteria:**
+
+- [ ] `app/rag/PROGRESS.md` records the e2e evaluation harness.
+- [ ] `PROGRESS.md` records branch-level status.
+- [ ] No Critical or Required review findings remain.
+- [ ] Working tree is clean after commits.
 
 **Verification:**
 
 - [ ] `uv run python -m pytest tests/unit -q`
 - [ ] `uv run ruff check . --no-cache`
 - [ ] `uv run python scripts/check_harness.py`
-- [ ] `npm run build` from `frontend/`
 - [ ] `git diff --check`
 
-**Dependencies:** Task 4.
+**Dependencies:** Task 5.
 
 **Files likely touched:**
 
-- `app/rag/ARCHITECTURE.md`
 - `app/rag/PROGRESS.md`
 - `PROGRESS.md`
 - `tasks/todo.md`
 
-**Estimated scope:** Medium, 4 files.
+**Estimated scope:** Small, 3 files.
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---:|---|
-| False rejection of short technical text | Medium | Accept short output; whitelist literal shapes and acronyms |
-| Invalid language appears after accepted prefix | High | Validate rolling window before every delta; never emit rejected fragment |
-| Retry doubles latency | Medium | Retry only before first delta and at most once |
-| Final answer differs from visible deltas | High | Build final answer only from emitted delta list; assert equality |
-| Client disconnect leaves generation running | Medium | Close async generator in `finally`; cancellation tests |
-| Pipeline grows further | High | Extract executor first; pipeline only orchestrates |
-| Scope drifts into router redesign | High | Keep router behavior unchanged and record it as deferred |
+| Dataset expectations become brittle | Medium | Use normalized any-of fact groups and optional fields |
+| Live eval is mistaken for unit tests | Medium | Keep external-service command separate from unit suite |
+| Trace lacks enough retrieval/evidence detail | High | Add a typed internal evaluation trace collector instead of parsing logs |
+| Existing retrieval evaluator breaks | High | Run old tests and keep old expected block valid |
+| Cases become production rules | High | Store cases only in tests/evaluation; never import them in routing |
+| Live run fails locally without Qdrant/Ollama | Medium | Fail clearly and document GX10 command |
 
 ## Open Questions
 
-None. The approved defaults are a 30-character prefix, one retry, deterministic
-guard, no new dependency/model, guarded streaming for Conversation, and buffered
-structured generation for RAG.
+None blocking. If local processed document content is unavailable or incomplete,
+Task 5 will add only cases whose expectations can be source-reviewed and leave
+the rest as documented GX10 curation notes, without weakening the
+evaluator itself.
 
 ## Definition of Done
 
 - Every behavior change follows RED -> GREEN -> REFACTOR.
-- Each task leaves tests green and is committed separately.
-- All acceptance criteria from the approved design spec pass.
-- Full backend unit suite, Ruff, harness check, and frontend build pass.
-- Review has no unresolved Critical or Required findings.
+- Existing retrieval evaluation remains supported.
+- New live e2e evaluator reports aggregate metrics and per-case first failure
+  stage.
+- Backend unit suite, Ruff, harness check, and diff check pass.
+- Durable progress docs are updated.
