@@ -169,3 +169,21 @@ def test_checked_in_dataset_covers_required_behavior_categories() -> None:
         "cross_domain",
         "document_scope",
     }.issubset(categories)
+
+
+def test_checked_in_dataset_covers_end_to_end_regressions() -> None:
+    dataset = Path(__file__).resolve().parents[1] / "evaluation" / "rag_cases.json"
+
+    cases = load_evaluation_cases(dataset)
+    case_ids = {case.case_id for case in cases}
+    categories = {case.category for case in cases}
+
+    assert {"routing", "conversation", "ambiguous", "language"}.issubset(categories)
+    assert {
+        "routing-github-001",
+        "routing-current-time-001",
+        "unanswerable-room-count-001",
+        "ambiguous-leave-quit-001",
+        "conversation-emotion-001",
+        "language-vietnamese-001",
+    }.issubset(case_ids)

@@ -6,7 +6,13 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Điều 1"
+      "section_contains": "Điều 1",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Điều 1", "Thời gian làm việc"],
+      "required_fact_groups": [["8h00", "8:00"], ["17h30", "17:30"]],
+      "citation_required": true
     }
   },
   {
@@ -16,7 +22,13 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Điều 1"
+      "section_contains": "Điều 1",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Điều 1", "Thời gian làm việc"],
+      "required_fact_groups": [["12h00", "12:00"], ["13h30", "13:30"]],
+      "citation_required": true
     }
   },
   {
@@ -26,7 +38,13 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Điều 1"
+      "section_contains": "Điều 1",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Điều 1", "Thời gian làm việc"],
+      "required_fact_groups": [["thứ 7", "thứ bảy"], ["8h00", "8:00"], ["12h00", "12:00"]],
+      "citation_required": true
     }
   },
   {
@@ -36,7 +54,13 @@
     "expected": {
       "outcome": "partial",
       "document_contains": "Nội Quy",
-      "section_contains": "Thời gian làm việc"
+      "section_contains": "Thời gian làm việc",
+      "expected_capability": "rag",
+      "expected_outcome": "partial",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Thời gian làm việc"],
+      "forbidden_fact_groups": [["hàng hóa", "tài sản"]],
+      "citation_required": true
     }
   },
   {
@@ -46,7 +70,12 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Quy Định",
-      "section_contains": "NAS"
+      "section_contains": "NAS",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Quy Định"],
+      "expected_sections": ["NAS"],
+      "citation_required": true
     }
   },
   {
@@ -56,7 +85,12 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Quy Định",
-      "section_contains": "Outlook"
+      "section_contains": "Outlook",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Quy Định"],
+      "expected_sections": ["Outlook"],
+      "citation_required": true
     }
   },
   {
@@ -66,7 +100,12 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Nội quy của Công ty"
+      "section_contains": "Nội quy của Công ty",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Nội quy của Công ty"],
+      "citation_required": true
     }
   },
   {
@@ -76,7 +115,12 @@
     "expected": {
       "outcome": "partial",
       "document_contains": "Quy Định",
-      "section_contains": "NAS"
+      "section_contains": "NAS",
+      "expected_capability": "rag",
+      "expected_outcome": "partial",
+      "expected_documents": ["Quy Định"],
+      "expected_sections": ["NAS"],
+      "citation_required": true
     }
   },
   {
@@ -84,7 +128,11 @@
     "category": "unanswerable",
     "question": "Công ty thưởng Tết bao nhiêu tháng lương?",
     "expected": {
-      "outcome": "unanswerable"
+      "outcome": "unanswerable",
+      "expected_capability": "rag",
+      "expected_outcome": "insufficient_context",
+      "forbidden_fact_groups": [["một tháng"], ["hai tháng"], ["ba tháng"]],
+      "citation_required": false
     }
   },
   {
@@ -92,7 +140,10 @@
     "category": "out_of_scope",
     "question": "Hôm nay thời tiết thế nào?",
     "expected": {
-      "outcome": "out_of_scope"
+      "outcome": "out_of_scope",
+      "expected_capability": "unsupported",
+      "expected_outcome": "out_of_scope",
+      "citation_required": false
     }
   },
   {
@@ -102,7 +153,12 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Hàng hóa, tài sản"
+      "section_contains": "Hàng hóa, tài sản",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Hàng hóa, tài sản"],
+      "citation_required": true
     }
   },
   {
@@ -112,7 +168,12 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Quy Định",
-      "section_contains": "Outlook"
+      "section_contains": "Outlook",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Quy Định"],
+      "expected_sections": ["Outlook"],
+      "citation_required": true
     }
   },
   {
@@ -122,7 +183,12 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Điều 1"
+      "section_contains": "Điều 1",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Điều 1"],
+      "citation_required": true
     }
   },
   {
@@ -132,7 +198,83 @@
     "expected": {
       "outcome": "answerable",
       "document_contains": "Nội Quy",
-      "section_contains": "Văn Hóa"
+      "section_contains": "Văn Hóa",
+      "expected_capability": "rag",
+      "expected_outcome": "answered",
+      "expected_documents": ["Nội Quy"],
+      "expected_sections": ["Văn Hóa"],
+      "citation_required": true
+    }
+  },
+  {
+    "id": "routing-github-001",
+    "category": "routing",
+    "question": "hướng dẫn tôi dùng github đi",
+    "expected": {
+      "outcome": "out_of_scope",
+      "expected_capability": "unsupported",
+      "expected_outcome": "out_of_scope",
+      "forbidden_fact_groups": [["SOURCE_1"], ["github", "tài liệu nội bộ"]],
+      "citation_required": false
+    }
+  },
+  {
+    "id": "routing-current-time-001",
+    "category": "routing",
+    "question": "bây giờ là mấy giờ",
+    "expected": {
+      "outcome": "out_of_scope",
+      "expected_capability": "unsupported",
+      "expected_outcome": "out_of_scope",
+      "citation_required": false
+    }
+  },
+  {
+    "id": "unanswerable-room-count-001",
+    "category": "unanswerable",
+    "question": "công ty có bao nhiêu phòng ban",
+    "expected": {
+      "outcome": "unanswerable",
+      "expected_capability": "rag",
+      "expected_outcome": "insufficient_context",
+      "forbidden_fact_groups": [["phòng ban"], ["có 3"], ["có 4"], ["có 5"]],
+      "citation_required": false
+    }
+  },
+  {
+    "id": "ambiguous-leave-quit-001",
+    "category": "ambiguous",
+    "question": "tôi muốn xin nghỉ",
+    "expected": {
+      "outcome": "out_of_scope",
+      "expected_capability": "clarify",
+      "expected_outcome": "clarify",
+      "forbidden_fact_groups": [["nghỉ việc hoàn toàn"], ["nghỉ phép năm"]],
+      "citation_required": false
+    }
+  },
+  {
+    "id": "conversation-emotion-001",
+    "category": "conversation",
+    "question": "hôm nay tôi buồn",
+    "expected": {
+      "outcome": "out_of_scope",
+      "expected_capability": "unsupported",
+      "expected_outcome": "out_of_scope",
+      "forbidden_fact_groups": [["tiếng Trung"], ["请"]],
+      "citation_required": false
+    }
+  },
+  {
+    "id": "language-vietnamese-001",
+    "category": "language",
+    "question": "tôi chán quá",
+    "expected": {
+      "outcome": "out_of_scope",
+      "expected_capability": "unsupported",
+      "expected_outcome": "out_of_scope",
+      "forbidden_fact_groups": [["请"], ["建议"], ["support"]],
+      "citation_required": false
     }
   }
 ]

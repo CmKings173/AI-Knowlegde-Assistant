@@ -40,16 +40,16 @@
 
 ## Task 5: Dataset coverage upgrade
 
-- [ ] Add optional e2e expectations to existing cases.
-- [ ] Add source-reviewed regression cases for current known failures.
-- [ ] Verify retrieval evaluator still loads and runs.
-- [ ] Commit the increment.
+- [x] Add optional e2e expectations to existing cases.
+- [x] Add source-reviewed regression cases for current known failures.
+- [x] Verify retrieval evaluator still loads in focused tests.
+- [x] Commit the increment.
 
 ## Checkpoint B
 
-- [ ] Deterministic tests pass.
+- [x] Deterministic tests pass.
 - [ ] Live runner can run at least `--limit 3` in a configured environment.
-- [ ] Generated reports are not committed.
+- [x] Generated reports are not committed.
 
 ## Task 6: Documentation and final review
 
