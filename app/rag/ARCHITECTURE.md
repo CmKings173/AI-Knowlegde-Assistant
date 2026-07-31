@@ -106,3 +106,34 @@ message + structured history
 - Frontend gửi lại `status`, `capability`, `subject` và `turn_kind` của assistant turn.
 - Conversation SSE vẫn trả delta; routing decision được tái sử dụng, không phân loại hai lần.
 - Legacy `IntentRouter` chỉ còn là compatibility path khi caller không inject router mới.
+
+## Guarded Vietnamese conversation streaming
+
+Conversation và RAG có hai generation contract khác nhau:
+
+```text
+Conversation
+-> Qwen stream
+-> buffer prefix 30 ký tự
+-> VietnameseLanguageGuard
+-> emit delta đã được kiểm tra
+-> rolling-window guard
+-> final
+
+RAG
+-> Qwen structured output
+-> buffer toàn bộ JSON
+-> citation/literal validation
+-> final
+```
+
+- Conversation KHÔNG ĐƯỢC phát prefix trước khi language guard chấp nhận.
+- CJK hoặc output không có tín hiệu tiếng Việt trước delta đầu tiên PHẢI retry đúng
+  một lần bằng clean prompt không chứa raw invalid output.
+- Retry tiếp tục fail PHẢI dùng fallback tiếng Việt; KHÔNG ĐƯỢC đổi thành
+  `out_of_scope`.
+- Fragment invalid giữa stream KHÔNG ĐƯỢC phát; executor phát safe notice và dừng.
+- `final.answer` PHẢI bằng phép nối chính xác các delta đã gửi.
+- Streaming prompt PHẢI nhận structured history state.
+- SSE timing PHẢI bắt đầu trước routing và kết thúc sau final.
+- RAG KHÔNG stream raw JSON token vì phải validation citation trước.

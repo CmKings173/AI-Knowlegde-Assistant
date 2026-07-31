@@ -50,3 +50,18 @@ Last updated: 2026-07-31
 - Prototype embedding cache có khóa chống duplicate initialization khi request đồng thời.
 - Final gate: backend unit tests, Ruff, harness check và frontend build đều pass.
 - Observability, metrics và threshold calibration được tách sang phase sau theo yêu cầu.
+
+## Guarded Vietnamese streaming - 2026-07-31
+
+- Conversation giữ prefix 30 ký tự trước khi phát delta đầu tiên.
+- Deterministic language guard chặn Han, Hiragana, Katakana, Hangul, mixed-script
+  và English output không có tín hiệu tiếng Việt; technical literals và acronym
+  ngắn vẫn được hỗ trợ.
+- Prefix invalid retry đúng một lần bằng clean prompt; retry fail dùng fallback
+  tiếng Việt thay vì out-of-scope.
+- Conversation phát nhiều delta thực sự và final answer khớp nội dung đã phát.
+- Structured history được dùng cho cả router và conversation streaming prompt.
+- SSE timing hiện bao gồm routing.
+- RAG structured JSON/citation flow không thay đổi.
+- Final gate: 176 backend unit tests, Ruff, harness check và frontend production
+  build đều pass.

@@ -29,25 +29,25 @@
 
 ## Task 4: API/frontend regression
 
-- [ ] Verify multiple delta ordering.
-- [ ] Verify final answer is not duplicated.
-- [ ] Build frontend.
-- [ ] Commit only if source changes are required.
+- [x] Verify multiple delta ordering.
+- [x] Verify final answer is not duplicated.
+- [x] Build frontend.
+- [x] Commit only if source changes are required (no additional source change needed).
 
 ## Checkpoint B
 
-- [ ] Conversation streams guarded deltas end to end.
-- [ ] RAG structured/citation flow is unchanged.
+- [x] Conversation streams guarded deltas end to end.
+- [x] RAG structured/citation flow is unchanged.
 
 ## Task 5: Final quality gate
 
-- [ ] Update architecture and progress documents.
-- [ ] Run all backend unit tests.
-- [ ] Run Ruff and harness check.
-- [ ] Build frontend production bundle.
-- [ ] Run five-axis code review.
-- [ ] Resolve all Critical and Required findings.
-- [ ] Confirm clean working tree.
+- [x] Update architecture and progress documents.
+- [x] Run all backend unit tests (176 passed).
+- [x] Run Ruff and harness check.
+- [x] Build frontend production bundle.
+- [x] Run five-axis code review.
+- [x] Resolve all Critical and Required findings.
+- [x] Confirm clean working tree after the final commit.
 
 ## Deferred
 

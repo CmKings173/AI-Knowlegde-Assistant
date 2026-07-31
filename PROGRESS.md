@@ -30,6 +30,9 @@ Last updated: 2026-07-31
   structured fallback, and an explicit Capability Router before branch execution.
 - External requests and conversation repairs no longer default to retrieval.
 - Frontend history carries structured routing state for follow-up resolution.
+- Conversation responses now use guarded Vietnamese streaming with prefix validation,
+  one clean retry, and a fixed Vietnamese fallback.
+- RAG responses remain fully buffered for structured-output and citation validation.
 
 ## Verified recently
 
