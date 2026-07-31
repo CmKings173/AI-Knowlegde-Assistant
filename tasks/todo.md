@@ -1,42 +1,57 @@
-# Todo: Multi-stage Router
+# Todo: Guarded Vietnamese Streaming
 
-## Specification
+## Task 1: Language guard
 
-- [x] Chốt phạm vi Conversation, Unsupported và Tool-disabled.
-- [x] Chốt luồng Turn Resolver -> Embedding -> Qwen fallback -> Capability Router.
-- [x] Ghi design spec và implementation plan.
+- [ ] Write RED tests for Vietnamese, CJK, English, mixed text, and technical literals.
+- [ ] Implement `VietnameseLanguageGuard`.
+- [ ] Run focused tests and Ruff.
+- [ ] Commit the increment.
 
-## Contracts and routing stages
+## Task 2: Conversation stream executor
 
-- [x] Tạo typed contracts cho turn, intent, affinity và capability.
-- [x] Implement Turn Resolver không gọi LLM riêng.
-- [x] Implement Embedding Route Classifier với threshold, margin và cache.
-- [x] Chống khởi tạo cache prototype lặp khi có request đồng thời.
-- [x] Implement Qwen Structured Classifier với JSON schema và fail-safe.
-- [x] Implement Capability Router không mặc định đẩy vào RAG.
+- [ ] Write RED tests for prefix buffering and progressive deltas.
+- [ ] Write RED tests for retry, fallback, mid-stream interruption, and cancellation.
+- [ ] Implement `ConversationStreamExecutor`.
+- [ ] Run focused tests and commit the increment.
 
-## Pipeline and conversation state
+## Checkpoint A
 
-- [x] Tích hợp router mới vào production dependency injection.
-- [x] External request không gọi retrieval.
-- [x] Conversation repair không gọi retrieval.
-- [x] Internal knowledge vẫn đi qua RAG và metadata filtering hiện có.
-- [x] Truyền `status`, `capability`, `subject`, `turn_kind` qua chat history.
-- [x] Giữ SSE delta cho nhánh conversation và chỉ route một lần.
-- [x] Giữ legacy router cho các caller chưa inject router mới.
+- [ ] Language guard and executor tests pass.
+- [ ] No dependency or model added.
 
-## Verification
+## Task 3: Pipeline integration
 
-- [x] Unit tests toàn backend.
-- [x] Ruff toàn repository.
-- [x] Harness check.
-- [x] Frontend production build.
-- [x] Review correctness, readability, architecture, security và performance.
-- [x] Không còn finding Critical/Required trong phạm vi thay đổi.
+- [ ] Write RED tests for structured history and router timing.
+- [ ] Replace duplicated pipeline streaming blocks with the executor.
+- [ ] Reuse one routing decision.
+- [ ] Run pipeline and retrieval regression tests.
+- [ ] Commit the increment.
 
-## Deferred by scope
+## Task 4: API/frontend regression
 
-- [ ] Metrics, tracing, Langfuse/OpenTelemetry và production SLO.
-- [ ] Calibration threshold bằng evaluation dataset thực tế.
-- [ ] Tool registry và tool execution.
-- [ ] Xóa legacy intent router sau giai đoạn tương thích.
+- [ ] Verify multiple delta ordering.
+- [ ] Verify final answer is not duplicated.
+- [ ] Build frontend.
+- [ ] Commit only if source changes are required.
+
+## Checkpoint B
+
+- [ ] Conversation streams guarded deltas end to end.
+- [ ] RAG structured/citation flow is unchanged.
+
+## Task 5: Final quality gate
+
+- [ ] Update architecture and progress documents.
+- [ ] Run all backend unit tests.
+- [ ] Run Ruff and harness check.
+- [ ] Build frontend production bundle.
+- [ ] Run five-axis code review.
+- [ ] Resolve all Critical and Required findings.
+- [ ] Confirm clean working tree.
+
+## Deferred
+
+- [ ] Hybrid context-dependency routing.
+- [ ] Router threshold calibration.
+- [ ] Metrics and observability platform.
+- [ ] Tool execution.
