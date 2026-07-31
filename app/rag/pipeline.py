@@ -45,6 +45,13 @@ from app.rag.response_validator import (
     validate_critical_literals,
 )
 from app.rag.retriever import Retriever
+from app.rag.routing.models import (
+    Capability,
+    RequestIntent,
+    RoutingDecision,
+    TurnKind,
+)
+from app.rag.routing.router import MultiStageRouter
 from app.rag.section_expander import expand_section_chunks
 from app.utils.text import normalize_for_intent
 from app.utils.timing import measure_ms
@@ -151,12 +158,15 @@ class RAGPipeline:
         settings: Settings,
         retriever: Retriever,
         llm_provider: LLMProvider,
+        *,
+        route_orchestrator: MultiStageRouter | None = None,
     ) -> None:
         self.settings = settings
         self.normalizer = QueryNormalizer(settings)
         self.intent_router = IntentRouter()
         self.retriever = retriever
         self.llm_provider = llm_provider
+        self.route_orchestrator = route_orchestrator
         self.evidence_config = EvidenceSelectionConfig(
             min_dense_score=settings.evidence_min_dense_score,
             min_bm25_score=settings.evidence_min_bm25_score,
@@ -174,6 +184,7 @@ class RAGPipeline:
         filters: RetrievalFilters | None = None,
         history: list[dict[str, str]] | None = None,
         continuation: dict[str, object] | None = None,
+        _routing_decision: RoutingDecision | None = None,
     ) -> dict[str, object]:
         total_start = time.perf_counter()
         timing: dict[str, int] = {
@@ -251,12 +262,25 @@ class RAGPipeline:
                     "branch": "continuation",
                 },
             )
-        intent = self.intent_router.classify(normalized, has_history=bool(history))
-        retrieval_first = _should_retrieve_before_routing(intent)
-        if intent.intent == Intent.AMBIGUOUS and not retrieval_first:
-            with measure_ms(timing, "router"):
-                intent = await self._route_with_llm(normalized, history, intent)
-        trace.update(_intent_trace(intent))
+        if self.route_orchestrator is not None:
+            routing = _routing_decision
+            if routing is None:
+                with measure_ms(timing, "router"):
+                    routing = await self.route_orchestrator.route(
+                        normalized,
+                        history,
+                        has_continuation=bool(continuation),
+                    )
+            intent = _intent_from_multistage(routing)
+            retrieval_first = False
+            trace.update(_routing_trace(routing))
+        else:
+            intent = self.intent_router.classify(normalized, has_history=bool(history))
+            retrieval_first = _should_retrieve_before_routing(intent)
+            if intent.intent == Intent.AMBIGUOUS and not retrieval_first:
+                with measure_ms(timing, "router"):
+                    intent = await self._route_with_llm(normalized, history, intent)
+            trace.update(_intent_trace(intent))
         trace["retrieval_first"] = retrieval_first
         _trace(
             "rag_intent",
@@ -625,6 +649,72 @@ class RAGPipeline:
                 {"stage": "retrieval", "message": "Đang lấy phần nội dung tiếp theo."},
             )
             response = await self.answer(question, filters, history, continuation)
+            yield _stream_event("final", response)
+            return
+
+        if self.route_orchestrator is not None:
+            routing = await self.route_orchestrator.route(
+                normalized,
+                history,
+                has_continuation=bool(continuation),
+            )
+            intent = _intent_from_multistage(routing)
+            if _is_streamable_conversation_intent(intent):
+                timing: dict[str, int] = {
+                    "router": 0,
+                    "rewrite": 0,
+                    "retrieval": 0,
+                    "rerank": 0,
+                    "llm": 0,
+                    "total": 0,
+                }
+                total_start = time.perf_counter()
+                trace = {
+                    **_routing_trace(routing),
+                    "retrieval_first": False,
+                    "branch": "conversation_stream",
+                }
+                answer_parts: list[str] = []
+                yield _stream_event(
+                    "progress",
+                    {"stage": "generation", "message": "Đang tạo câu trả lời."},
+                )
+                with measure_ms(timing, "llm"):
+                    user_prompt = build_conversation_stream_prompt(normalized, history)
+                    async for token in self.llm_provider.stream_generate(
+                        CONVERSATIONAL_STREAM_SYSTEM_PROMPT,
+                        user_prompt,
+                    ):
+                        answer_parts.append(token)
+                answer = "".join(answer_parts).strip() or CONVERSATIONAL_RESPONSE
+                if contains_disallowed_cjk(answer):
+                    answer = OUT_OF_SCOPE_RESPONSE
+                yield _stream_event("delta", {"text": answer})
+                timing["total"] = int((time.perf_counter() - total_start) * 1000)
+                yield _stream_event(
+                    "final",
+                    _response(
+                        status="conversational",
+                        answer=answer,
+                        citations=[],
+                        candidate_count=0,
+                        context_count=0,
+                        reranker_used=False,
+                        timing=timing,
+                        trace=trace,
+                    ),
+                )
+                return
+            progress = _progress_for_non_streamed_intent(intent)
+            if progress:
+                yield _stream_event("progress", progress)
+            response = await self.answer(
+                question,
+                filters,
+                history,
+                continuation,
+                _routing_decision=routing,
+            )
             yield _stream_event("final", response)
             return
 
@@ -1427,6 +1517,64 @@ def _intent_trace(intent: IntentDecision) -> dict[str, object]:
     }
 
 
+def _intent_from_multistage(routing: RoutingDecision) -> IntentDecision:
+    classification = routing.classification
+    capability = routing.capability.capability
+    if capability == Capability.RAG:
+        if classification.intent == RequestIntent.SUMMARIZE_SECTION:
+            intent = Intent.BROAD_SECTION_QUERY
+            subtype = FollowUpSubtype.NONE
+        elif classification.turn_kind == TurnKind.FOLLOW_UP:
+            intent = Intent.FOLLOW_UP
+            subtype = FollowUpSubtype.KNOWLEDGE_FOLLOW_UP
+        else:
+            intent = Intent.KNOWLEDGE_QUERY
+            subtype = FollowUpSubtype.NONE
+    elif capability == Capability.CONVERSATION:
+        if classification.intent == RequestIntent.CONVERSATION_REPAIR:
+            intent = Intent.FOLLOW_UP
+            subtype = FollowUpSubtype.CASUAL_FOLLOW_UP
+        elif classification.intent == RequestIntent.CONTINUE_PREVIOUS:
+            intent = Intent.FOLLOW_UP
+            subtype = FollowUpSubtype.CONTINUATION
+        else:
+            intent = Intent.CONVERSATIONAL_LLM
+            subtype = FollowUpSubtype.NONE
+    elif capability == Capability.UNSUPPORTED:
+        intent = Intent.OUT_OF_SCOPE
+        subtype = FollowUpSubtype.NONE
+    else:
+        intent = Intent.CLARIFY
+        subtype = FollowUpSubtype.NONE
+    return IntentDecision(
+        intent=intent,
+        confidence=routing.capability.confidence,
+        reason=f"multistage:{routing.capability.reason}",
+        subtype=subtype,
+        llm_router_used=routing.qwen_used,
+    )
+
+
+def _routing_trace(routing: RoutingDecision) -> dict[str, object]:
+    classification = routing.classification
+    return {
+        "intent": classification.intent,
+        "subtype": classification.turn_kind,
+        "confidence": round(classification.confidence, 3),
+        "reason": classification.reason,
+        "llm_router_used": routing.qwen_used,
+        "turn_kind": routing.turn.kind,
+        "turn_reason": routing.turn.reason,
+        "route_affinity": classification.affinity,
+        "route_classifier": classification.classifier,
+        "route_top_score": classification.top_score,
+        "route_margin": classification.margin,
+        "route_subject": classification.subject,
+        "capability": routing.capability.capability,
+        "capability_reason": routing.capability.reason,
+    }
+
+
 def _trace(event: str, **fields: object) -> None:
     logger.info("%s %s", event, json.dumps(fields, ensure_ascii=False, default=str))
 
@@ -1467,6 +1615,15 @@ def _clean_trace(trace: dict[str, object]) -> dict[str, object]:
         "confidence",
         "reason",
         "branch",
+        "turn_kind",
+        "turn_reason",
+        "route_affinity",
+        "route_classifier",
+        "route_top_score",
+        "route_margin",
+        "route_subject",
+        "capability",
+        "capability_reason",
         "candidate_count",
         "context_count",
         "best_score",

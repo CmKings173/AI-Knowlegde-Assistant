@@ -2,57 +2,41 @@
 
 ## Specification
 
-- [x] Chốt phạm vi Conversation và Unsupported với người dùng.
-- [x] Chốt luồng Turn -> Embedding -> Qwen fallback -> Capability -> Guard.
-- [x] Ghi design spec.
-- [x] Ghi implementation plan.
+- [x] Chốt phạm vi Conversation, Unsupported và Tool-disabled.
+- [x] Chốt luồng Turn Resolver -> Embedding -> Qwen fallback -> Capability Router.
+- [x] Ghi design spec và implementation plan.
 
-## Task 1: Contracts and Turn Resolver
+## Contracts and routing stages
 
-- [x] Viết test RED cho typed contracts và turn resolution.
-- [x] Implement contract và resolver tối thiểu.
-- [x] Chạy focused tests.
+- [x] Tạo typed contracts cho turn, intent, affinity và capability.
+- [x] Implement Turn Resolver không gọi LLM riêng.
+- [x] Implement Embedding Route Classifier với threshold, margin và cache.
+- [x] Chống khởi tạo cache prototype lặp khi có request đồng thời.
+- [x] Implement Qwen Structured Classifier với JSON schema và fail-safe.
+- [x] Implement Capability Router không mặc định đẩy vào RAG.
 
-## Task 2: Embedding Classifier
+## Pipeline and conversation state
 
-- [x] Viết test RED cho threshold, margin, cache và provider error.
-- [x] Implement classifier không dependency mới.
-- [x] Chạy Checkpoint A.
+- [x] Tích hợp router mới vào production dependency injection.
+- [x] External request không gọi retrieval.
+- [x] Conversation repair không gọi retrieval.
+- [x] Internal knowledge vẫn đi qua RAG và metadata filtering hiện có.
+- [x] Truyền `status`, `capability`, `subject`, `turn_kind` qua chat history.
+- [x] Giữ SSE delta cho nhánh conversation và chỉ route một lần.
+- [x] Giữ legacy router cho các caller chưa inject router mới.
 
-## Task 3: Qwen Structured Classifier
+## Verification
 
-- [x] Viết test RED cho valid/malformed/unknown JSON.
-- [x] Implement prompt, parser và provider fallback.
-- [x] Chạy focused tests.
+- [x] Unit tests toàn backend.
+- [x] Ruff toàn repository.
+- [x] Harness check.
+- [x] Frontend production build.
+- [x] Review correctness, readability, architecture, security và performance.
+- [x] Không còn finding Critical/Required trong phạm vi thay đổi.
 
-## Task 4: Capability Router
+## Deferred by scope
 
-- [x] Viết test RED cho RAG/Conversation/Unsupported/Clarify/Tool disabled.
-- [x] Implement capability decisions không default sang RAG.
-- [x] Chạy Checkpoint B.
-
-## Task 5: Pipeline Integration
-
-- [ ] Viết regression test GitHub không retrieval.
-- [ ] Viết regression test conversation repair không retrieval.
-- [ ] Viết test internal knowledge vẫn retrieval.
-- [ ] Viết test uncertain embedding gọi Qwen đúng một lần.
-- [ ] Integrate multi-stage orchestrator.
-- [ ] Chạy pipeline focused tests.
-
-## Task 6: Guard and Conversation State
-
-- [ ] Viết test branch-specific status.
-- [ ] Thêm optional conversation-state contract.
-- [ ] Truyền metadata từ frontend history.
-- [ ] Build frontend.
-
-## Task 7: Final Verification
-
-- [ ] Full backend unit suite.
-- [ ] Ruff toàn repo.
-- [ ] Harness check.
-- [ ] Frontend production build.
-- [ ] Cập nhật architecture/progress.
-- [ ] Review correctness/readability/architecture/security/performance.
-- [ ] Xử lý mọi finding Critical/Required.
+- [ ] Metrics, tracing, Langfuse/OpenTelemetry và production SLO.
+- [ ] Calibration threshold bằng evaluation dataset thực tế.
+- [ ] Tool registry và tool execution.
+- [ ] Xóa legacy intent router sau giai đoạn tương thích.

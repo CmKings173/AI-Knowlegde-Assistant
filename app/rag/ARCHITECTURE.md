@@ -84,3 +84,25 @@ LLM nhận:
 - KHÔNG ĐƯỢC biến lỗi generation thành thông báo thiếu tài liệu.
 - KHÔNG ĐƯỢC đưa heuristic fact guard trở lại V2 nếu chưa có evaluation chứng minh.
 - Reranker model là tùy chọn; fallback chính vẫn là RRF + evidence selector.
+
+## Multi-stage request routing
+
+Production dependency injection PHẢI tạo `MultiStageRouter` trước `RAGPipeline`.
+
+```text
+message + structured history
+-> Turn Resolver
+-> Embedding Route Classifier
+-> Qwen Structured Classifier (chỉ khi embedding chưa chắc chắn)
+-> Capability Router
+-> RAG | Conversation | Unsupported | Clarify
+-> branch-specific response validation
+```
+
+- Embedding route chỉ được chấp nhận khi đạt cả score threshold và top-1/top-2 margin.
+- Prototype vectors được cache và khởi tạo an toàn khi có request đồng thời.
+- Classifier/provider lỗi PHẢI fail-safe sang `clarify`, KHÔNG ĐƯỢC fail-open vào RAG.
+- Tool capability tồn tại trong contract nhưng đang bị tắt.
+- Frontend gửi lại `status`, `capability`, `subject` và `turn_kind` của assistant turn.
+- Conversation SSE vẫn trả delta; routing decision được tái sử dụng, không phân loại hai lần.
+- Legacy `IntentRouter` chỉ còn là compatibility path khi caller không inject router mới.

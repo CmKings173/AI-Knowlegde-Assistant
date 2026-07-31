@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-07-29
+Last updated: 2026-07-31
 
 ## Current state
 
@@ -26,6 +26,10 @@ Last updated: 2026-07-29
   the whole document storage tree.
 - Delete now removes global chunk snapshots and does not silently proceed if Qdrant
   delete cannot confirm collection state.
+- Production chat routing now uses Turn Resolver, embedding classification, Qwen
+  structured fallback, and an explicit Capability Router before branch execution.
+- External requests and conversation repairs no longer default to retrieval.
+- Frontend history carries structured routing state for follow-up resolution.
 
 ## Verified recently
 

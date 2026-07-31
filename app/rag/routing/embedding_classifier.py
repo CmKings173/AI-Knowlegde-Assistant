@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 from dataclasses import dataclass
 
@@ -8,6 +9,7 @@ from app.rag.routing.models import (
     RequestIntent,
     RouteAffinity,
     RouteClassification,
+    TurnKind,
 )
 
 
@@ -18,6 +20,7 @@ class RoutePrototype:
     affinity: RouteAffinity
     utterances: tuple[str, ...]
     threshold: float
+    turn_kind: TurnKind = TurnKind.INDEPENDENT
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,7 @@ class EmbeddingRouteClassifier:
         self.prototypes = prototypes
         self.minimum_margin = minimum_margin
         self._prototype_vectors: list[list[list[float]]] | None = None
+        self._prototype_lock = asyncio.Lock()
 
     async def classify(self, query: str) -> RouteClassification:
         try:
@@ -76,26 +80,30 @@ class EmbeddingRouteClassifier:
             is_confident=True,
             top_score=winner.score,
             margin=margin,
+            turn_kind=winner.prototype.turn_kind,
         )
 
     async def _ensure_prototype_vectors(self) -> None:
         if self._prototype_vectors is not None:
             return
-        utterances = [
-            utterance
-            for prototype in self.prototypes
-            for utterance in prototype.utterances
-        ]
-        vectors = await self.embedding_provider.embed_texts(utterances)
-        if len(vectors) != len(utterances):
-            raise ValueError("prototype embedding count mismatch")
-        grouped: list[list[list[float]]] = []
-        offset = 0
-        for prototype in self.prototypes:
-            end = offset + len(prototype.utterances)
-            grouped.append(vectors[offset:end])
-            offset = end
-        self._prototype_vectors = grouped
+        async with self._prototype_lock:
+            if self._prototype_vectors is not None:
+                return
+            utterances = [
+                utterance
+                for prototype in self.prototypes
+                for utterance in prototype.utterances
+            ]
+            vectors = await self.embedding_provider.embed_texts(utterances)
+            if len(vectors) != len(utterances):
+                raise ValueError("prototype embedding count mismatch")
+            grouped: list[list[list[float]]] = []
+            offset = 0
+            for prototype in self.prototypes:
+                end = offset + len(prototype.utterances)
+                grouped.append(vectors[offset:end])
+                offset = end
+            self._prototype_vectors = grouped
 
     def _rank(self, query_vector: list[float]) -> list[_ScoredRoute]:
         if self._prototype_vectors is None:
@@ -144,4 +152,3 @@ def _unknown(
         top_score=top_score,
         margin=margin,
     )
-

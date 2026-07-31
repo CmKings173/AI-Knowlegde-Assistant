@@ -16,17 +16,45 @@ class OllamaProvider(LLMProvider):
         self.client = httpx.AsyncClient(timeout=settings.llm_timeout_seconds)
 
     async def generate(self, system_prompt: str, user_prompt: str) -> str:
+        return await self._generate_chat(system_prompt, user_prompt)
+
+    async def generate_structured(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: dict[str, object],
+    ) -> str:
+        return await self._generate_chat(
+            system_prompt,
+            user_prompt,
+            format_schema=schema,
+            deterministic=True,
+        )
+
+    async def _generate_chat(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        format_schema: dict[str, object] | None = None,
+        deterministic: bool = False,
+    ) -> str:
+        payload: dict[str, object] = {
+            "model": self.settings.ollama_model,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        if format_schema is not None:
+            payload["format"] = format_schema
+        if deterministic:
+            payload["options"] = {"temperature": 0}
         try:
             response = await self.client.post(
                 f"{self.settings.ollama_base_url.rstrip('/')}/api/chat",
-                json={
-                    "model": self.settings.ollama_model,
-                    "stream": False,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                },
+                json=payload,
             )
         except httpx.HTTPError as exc:
             raise LLMProviderError(str(exc)) from exc

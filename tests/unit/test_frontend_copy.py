@@ -87,3 +87,16 @@ def test_frontend_client_id_has_crypto_fallback() -> None:
     assert "globalThis.crypto?.getRandomValues" in runtime_source
     assert "Math.random().toString(36)" in runtime_source
     assert "return `${prefix}-${crypto.randomUUID()}`" not in runtime_source
+
+
+def test_frontend_history_sends_structured_routing_state() -> None:
+    runtime_source = (ROOT / "frontend" / "src" / "chat-runtime.tsx").read_text(
+        encoding="utf-8"
+    )
+    types_source = (ROOT / "frontend" / "src" / "types.ts").read_text(encoding="utf-8")
+
+    assert "status: message.status" in runtime_source
+    assert "capability: message.trace?.capability" in runtime_source
+    assert "subject: message.trace?.route_subject" in runtime_source
+    assert "turn_kind: message.trace?.turn_kind" in runtime_source
+    assert "capability?: RouteCapability" in types_source

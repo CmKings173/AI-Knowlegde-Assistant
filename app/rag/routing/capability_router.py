@@ -47,6 +47,7 @@ class CapabilityRouter:
             in {
                 RequestIntent.ASK_INFORMATION,
                 RequestIntent.REQUEST_INSTRUCTION,
+                RequestIntent.SUMMARIZE_SECTION,
             }
             and classification.affinity == RouteAffinity.INTERNAL_KNOWLEDGE
         ):
@@ -75,4 +76,3 @@ class CapabilityRouter:
             confidence=classification.confidence,
             reason="no_capability_match",
         )
-

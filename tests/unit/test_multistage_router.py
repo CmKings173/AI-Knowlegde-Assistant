@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import json
+
+import httpx
 import pytest
 
+from app.config import Settings
+from app.providers.llm.ollama_provider import OllamaProvider
 from app.rag.routing.capability_router import CapabilityRouter
 from app.rag.routing.embedding_classifier import (
     EmbeddingRouteClassifier,
@@ -15,6 +21,7 @@ from app.rag.routing.models import (
     TurnKind,
     TurnResolution,
 )
+from app.rag.routing.router import MultiStageRouter
 from app.rag.routing.structured_classifier import (
     StructuredRouteClassifier,
     parse_structured_route_output,
@@ -36,6 +43,13 @@ class FailingEmbeddingProvider:
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         del texts
         raise RuntimeError("embedding unavailable")
+
+
+class YieldingEmbeddingProvider(ControlledEmbeddingProvider):
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(texts)
+        await asyncio.sleep(0)
+        return [self.vectors[text] for text in texts]
 
 
 class FakeLLM:
@@ -135,6 +149,36 @@ async def test_embedding_classifier_accepts_clear_route_and_caches_prototypes() 
         ["first query"],
         ["second query"],
     ]
+
+
+@pytest.mark.asyncio
+async def test_embedding_classifier_initializes_prototypes_once_concurrently() -> None:
+    provider = YieldingEmbeddingProvider(
+        {
+            "internal example": [1.0, 0.0],
+            "first query": [1.0, 0.0],
+            "second query": [1.0, 0.0],
+        }
+    )
+    classifier = EmbeddingRouteClassifier(
+        provider,
+        prototypes=[
+            RoutePrototype(
+                name="internal",
+                intent=RequestIntent.ASK_INFORMATION,
+                affinity=RouteAffinity.INTERNAL_KNOWLEDGE,
+                utterances=("internal example",),
+                threshold=0.8,
+            )
+        ],
+    )
+
+    await asyncio.gather(
+        classifier.classify("first query"),
+        classifier.classify("second query"),
+    )
+
+    assert provider.calls.count(["internal example"]) == 1
 
 
 @pytest.mark.asyncio
@@ -317,3 +361,178 @@ def test_capability_router_maps_supported_branches_without_defaulting_to_rag() -
     assert action.capability == Capability.UNSUPPORTED
     assert action.reason == "tool_execution_disabled"
     assert unknown.capability == Capability.CLARIFY
+
+
+@pytest.mark.asyncio
+async def test_multistage_router_skips_qwen_for_confident_embedding_route() -> None:
+    provider = ControlledEmbeddingProvider(
+        {
+            "external example": [1.0, 0.0],
+            "conversation example": [0.0, 1.0],
+            "external query": [1.0, 0.0],
+        }
+    )
+    embedding_classifier = EmbeddingRouteClassifier(
+        provider,
+        prototypes=[
+            RoutePrototype(
+                name="external",
+                intent=RequestIntent.REQUEST_INSTRUCTION,
+                affinity=RouteAffinity.EXTERNAL,
+                utterances=("external example",),
+                threshold=0.8,
+            ),
+            RoutePrototype(
+                name="conversation",
+                intent=RequestIntent.SOCIAL,
+                affinity=RouteAffinity.CONVERSATION,
+                utterances=("conversation example",),
+                threshold=0.8,
+            ),
+        ],
+    )
+    llm = FakeLLM(AssertionError("structured classifier must not run"))
+    router = MultiStageRouter(
+        TurnResolver(),
+        embedding_classifier,
+        StructuredRouteClassifier(llm),
+        CapabilityRouter(),
+    )
+
+    decision = await router.route("external query", [], has_continuation=False)
+
+    assert decision.capability.capability == Capability.UNSUPPORTED
+    assert decision.classification.classifier == "embedding"
+    assert not decision.qwen_used
+    assert llm.calls == []
+
+
+@pytest.mark.asyncio
+async def test_multistage_router_uses_qwen_when_turn_with_history_is_unresolved() -> None:
+    provider = ControlledEmbeddingProvider(
+        {
+            "internal example": [1.0, 0.0],
+            "follow-up query": [1.0, 0.0],
+        }
+    )
+    embedding_classifier = EmbeddingRouteClassifier(
+        provider,
+        prototypes=[
+            RoutePrototype(
+                name="internal",
+                intent=RequestIntent.ASK_INFORMATION,
+                affinity=RouteAffinity.INTERNAL_KNOWLEDGE,
+                utterances=("internal example",),
+                threshold=0.8,
+            )
+        ],
+    )
+    llm = FakeLLM(
+        '{"intent":"ask_information","affinity":"internal_knowledge",'
+        '"subject":"quy định nghỉ","context_dependency":"follow_up",'
+        '"confidence":0.93,"reason":"depends on previous HR answer"}'
+    )
+    router = MultiStageRouter(
+        TurnResolver(),
+        embedding_classifier,
+        StructuredRouteClassifier(llm),
+        CapabilityRouter(),
+    )
+
+    decision = await router.route(
+        "follow-up query",
+        [{"role": "assistant", "content": "Quy định nghỉ có phép."}],
+        has_continuation=False,
+    )
+
+    assert decision.qwen_used
+    assert decision.classification.classifier == "qwen"
+    assert decision.classification.turn_kind == TurnKind.FOLLOW_UP
+    assert len(llm.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_multistage_router_calls_qwen_once_for_uncertain_embedding_route() -> None:
+    provider = ControlledEmbeddingProvider(
+        {
+            "internal example": [1.0, 0.0],
+            "external example": [0.8, 0.6],
+            "uncertain query": [0.95, 0.31],
+        }
+    )
+    embedding_classifier = EmbeddingRouteClassifier(
+        provider,
+        prototypes=[
+            RoutePrototype(
+                name="internal",
+                intent=RequestIntent.ASK_INFORMATION,
+                affinity=RouteAffinity.INTERNAL_KNOWLEDGE,
+                utterances=("internal example",),
+                threshold=0.8,
+            ),
+            RoutePrototype(
+                name="external",
+                intent=RequestIntent.ASK_INFORMATION,
+                affinity=RouteAffinity.EXTERNAL,
+                utterances=("external example",),
+                threshold=0.8,
+            ),
+        ],
+        minimum_margin=0.1,
+    )
+    llm = FakeLLM(
+        '{"intent":"ask_information","affinity":"internal_knowledge",'
+        '"subject":"quy định công ty","context_dependency":"independent",'
+        '"confidence":0.91,"reason":"requires internal document"}'
+    )
+    router = MultiStageRouter(
+        TurnResolver(),
+        embedding_classifier,
+        StructuredRouteClassifier(llm),
+        CapabilityRouter(),
+    )
+
+    decision = await router.route(
+        "uncertain query",
+        [{"role": "user", "content": "context"}],
+        has_continuation=False,
+    )
+
+    assert decision.capability.capability == Capability.RAG
+    assert decision.classification.classifier == "qwen"
+    assert decision.qwen_used
+    assert len(llm.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_ollama_structured_generation_sends_json_schema() -> None:
+    captured: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"message": {"content": '{"intent":"social"}'}},
+        )
+
+    provider = OllamaProvider(
+        Settings(
+            ollama_base_url="http://ollama.test",
+            ollama_model="qwen-test",
+        )
+    )
+    await provider.client.aclose()
+    provider.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    schema = {
+        "type": "object",
+        "properties": {"intent": {"type": "string"}},
+        "required": ["intent"],
+    }
+
+    output = await provider.generate_structured("system", "user", schema)
+
+    assert output == '{"intent":"social"}'
+    assert captured["format"] == schema
+    assert captured["stream"] is False
+    assert captured["options"] == {"temperature": 0}
+    await provider.client.aclose()

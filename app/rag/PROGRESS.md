@@ -38,3 +38,15 @@ Last updated: 2026-07-31
   corpus hoặc concurrency tăng.
 - Critical-literal validation hiện chỉ bao phủ time, IP và port; claim-level semantic
   verification cần một thiết kế/evaluation riêng nếu triển khai sau.
+
+## Multi-stage router - 2026-07-31
+
+- Production pipeline dùng Turn Resolver, embedding route classifier, Qwen structured
+  fallback và Capability Router.
+- External request và conversation repair không còn bị đẩy mặc định vào retrieval.
+- Tool execution đang tắt; unsupported và classifier failure fail-safe rõ ràng.
+- Structured conversation state được truyền từ frontend về backend.
+- Conversation SSE giữ delta streaming và chỉ route một lần.
+- Prototype embedding cache có khóa chống duplicate initialization khi request đồng thời.
+- Final gate: backend unit tests, Ruff, harness check và frontend build đều pass.
+- Observability, metrics và threshold calibration được tách sang phase sau theo yêu cầu.

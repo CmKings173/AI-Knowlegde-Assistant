@@ -280,7 +280,7 @@ CONTINUATION_PROMPT_VI = "Ban co muon xem tiep khong?"
 
 def build_conversation_prompt(question: str, history: list[dict[str, str]]) -> str:
     return f"""LICH SU HOI THOAI GAN NHAT:
-{_format_history(history)}
+{_format_history_with_state(history)}
 
 CAU HOI HIEN TAI:
 {question}
@@ -433,7 +433,7 @@ MULTISTAGE_ROUTER_SYSTEM_PROMPT = """Ban la bo phan phan loai yeu cau cho tro ly
 
 Chi tra ve mot JSON object hop le, khong Markdown va khong giai thich ngoai JSON:
 {
-  "intent": "ask_information | request_instruction | request_action |
+  "intent": "ask_information | request_instruction | summarize_section | request_action |
              conversation_repair | continue_previous | social | unknown",
   "affinity": "internal_knowledge | conversation | external | tool | unknown",
   "subject": "doi tuong chinh cua yeu cau",
@@ -452,6 +452,7 @@ Quy tac:
 - conversation cho chao hoi, phan hoi cam xuc nhe, hoi lai hoac yeu cau giai thich cau tra loi.
 - tool chi khi nguoi dung yeu cau he thong thuc hien mot hanh dong; khong gia dinh tool ton tai.
 - conversation_repair khi nguoi dung khong hieu, phan doi, hoac hoi lai cau tra loi truoc.
+- summarize_section khi nguoi dung muon liet ke hoac tong hop day du mot phan tai lieu noi bo.
 - Lich su chi dung de resolve tham chieu; khong dung lam nguon su that nghiep vu.
 - Neu khong chac chan, chon unknown voi confidence thap. Khong ep vao internal_knowledge.
 """
@@ -484,11 +485,15 @@ def _format_history_with_state(history: list[dict[str, str]]) -> str:
         content = str(message.get("content", ""))
         status = str(message.get("status", "")).strip()
         capability = str(message.get("capability", "")).strip()
+        subject = str(message.get("subject", "")).strip()
+        turn_kind = str(message.get("turn_kind", "")).strip()
         state = ", ".join(
             item
             for item in (
                 f"status={status}" if status else "",
                 f"capability={capability}" if capability else "",
+                f"subject={subject}" if subject else "",
+                f"turn_kind={turn_kind}" if turn_kind else "",
             )
             if item
         )

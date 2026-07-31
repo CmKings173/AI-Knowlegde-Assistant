@@ -16,6 +16,35 @@ from app.rag.routing.models import (
 )
 
 _MIN_CONFIDENCE = 0.65
+ROUTE_OUTPUT_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "intent": {
+            "type": "string",
+            "enum": [value.value for value in RequestIntent],
+        },
+        "affinity": {
+            "type": "string",
+            "enum": [value.value for value in RouteAffinity],
+        },
+        "subject": {"type": "string"},
+        "context_dependency": {
+            "type": "string",
+            "enum": [value.value for value in TurnKind],
+        },
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "reason": {"type": "string"},
+    },
+    "required": [
+        "intent",
+        "affinity",
+        "subject",
+        "context_dependency",
+        "confidence",
+        "reason",
+    ],
+    "additionalProperties": False,
+}
 
 
 class StructuredRouteClassifier:
@@ -29,10 +58,23 @@ class StructuredRouteClassifier:
         turn: TurnResolution,
     ) -> RouteClassification:
         try:
-            output = await self.llm_provider.generate(
-                MULTISTAGE_ROUTER_SYSTEM_PROMPT,
-                build_multistage_router_prompt(question, history, turn),
+            user_prompt = build_multistage_router_prompt(question, history, turn)
+            generate_structured = getattr(
+                self.llm_provider,
+                "generate_structured",
+                None,
             )
+            if callable(generate_structured):
+                output = await generate_structured(
+                    MULTISTAGE_ROUTER_SYSTEM_PROMPT,
+                    user_prompt,
+                    ROUTE_OUTPUT_SCHEMA,
+                )
+            else:
+                output = await self.llm_provider.generate(
+                    MULTISTAGE_ROUTER_SYSTEM_PROMPT,
+                    user_prompt,
+                )
         except Exception:  # noqa: BLE001 - external provider failure is a safe clarify
             return _unknown("structured_classifier_unavailable")
         parsed = parse_structured_route_output(output)
@@ -99,4 +141,3 @@ def _strip_json_fence(value: str) -> str:
     if lines and lines[-1].strip() == "```":
         lines = lines[:-1]
     return "\n".join(lines).strip()
-

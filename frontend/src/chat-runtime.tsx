@@ -240,7 +240,14 @@ function buildHistory(messages: AppMessage[]): ChatHistoryMessage[] {
     }
     const content = message.content.slice(-remainingChars);
     remainingChars -= content.length;
-    history.push({ role: message.role, content });
+    history.push({
+      role: message.role,
+      content,
+      status: message.status === "error" ? undefined : message.status,
+      capability: message.trace?.capability ?? undefined,
+      subject: message.trace?.route_subject ?? undefined,
+      turn_kind: message.trace?.turn_kind as ChatHistoryMessage["turn_kind"]
+    });
   }
 
   return history.reverse();

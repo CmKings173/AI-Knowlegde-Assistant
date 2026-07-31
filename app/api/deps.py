@@ -10,6 +10,7 @@ from app.providers.llm.factory import create_llm_provider
 from app.providers.vector_store.qdrant_store import QdrantVectorStore
 from app.rag.pipeline import RAGPipeline
 from app.rag.retriever import Retriever
+from app.rag.routing.router import MultiStageRouter, create_multistage_router
 
 
 @lru_cache
@@ -20,6 +21,11 @@ def get_vector_store() -> QdrantVectorStore:
 @lru_cache
 def get_embedding_provider():
     return create_embedding_provider(get_settings())
+
+
+@lru_cache
+def get_llm_provider():
+    return create_llm_provider(get_settings())
 
 
 @lru_cache
@@ -35,9 +41,23 @@ def get_retriever() -> Retriever:
 
 
 @lru_cache
+def get_multistage_router() -> MultiStageRouter:
+    return create_multistage_router(
+        get_settings(),
+        get_embedding_provider(),
+        get_llm_provider(),
+    )
+
+
+@lru_cache
 def get_rag_pipeline() -> RAGPipeline:
     settings = get_settings()
-    return RAGPipeline(settings, get_retriever(), create_llm_provider(settings))
+    return RAGPipeline(
+        settings,
+        get_retriever(),
+        get_llm_provider(),
+        route_orchestrator=get_multistage_router(),
+    )
 
 
 def get_ingestion_pipeline() -> IngestionPipeline:

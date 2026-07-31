@@ -40,6 +40,25 @@ class ChatFilters(BaseModel):
 class ChatHistoryMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=4000)
+    status: Literal[
+        "answered",
+        "partial",
+        "insufficient_context",
+        "out_of_scope",
+        "conversational",
+        "clarify",
+        "generation_failed",
+        "conflict",
+    ] | None = None
+    capability: Literal["rag", "tool", "conversation", "unsupported", "clarify"] | None = None
+    subject: str | None = Field(default=None, max_length=200)
+    turn_kind: Literal[
+        "independent",
+        "follow_up",
+        "repair",
+        "continuation",
+        "unresolved",
+    ] | None = None
 
 
 class ChatContinuation(BaseModel):
@@ -72,7 +91,12 @@ class ChatRequest(BaseModel):
                 continue
             content = content[-remaining_chars:]
             remaining_chars -= len(content)
-            sanitized.append({"role": message.role, "content": content})
+            item = {"role": message.role, "content": content}
+            for field in ("status", "capability", "subject", "turn_kind"):
+                value = getattr(message, field)
+                if value is not None:
+                    item[field] = value
+            sanitized.append(item)
         return list(reversed(sanitized))
 
 
@@ -104,6 +128,15 @@ class RouteTrace(BaseModel):
     confidence: float | None = None
     reason: str | None = None
     branch: str | None = None
+    turn_kind: str | None = None
+    turn_reason: str | None = None
+    route_affinity: str | None = None
+    route_classifier: str | None = None
+    route_top_score: float | None = None
+    route_margin: float | None = None
+    route_subject: str | None = None
+    capability: str | None = None
+    capability_reason: str | None = None
     candidate_count: int | None = None
     context_count: int | None = None
     best_score: float | None = None

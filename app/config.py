@@ -47,6 +47,8 @@ class Settings(BaseSettings):
 
     reranker_enabled: bool = False
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    route_embedding_min_score: float = 0.76
+    route_embedding_min_margin: float = 0.08
 
     dense_top_k: int = 15
     lexical_top_k: int = 15

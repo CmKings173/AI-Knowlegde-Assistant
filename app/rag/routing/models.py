@@ -15,6 +15,7 @@ class TurnKind(StrEnum):
 class RequestIntent(StrEnum):
     ASK_INFORMATION = "ask_information"
     REQUEST_INSTRUCTION = "request_instruction"
+    SUMMARIZE_SECTION = "summarize_section"
     REQUEST_ACTION = "request_action"
     CONVERSATION_REPAIR = "conversation_repair"
     CONTINUE_PREVIOUS = "continue_previous"
@@ -65,3 +66,11 @@ class CapabilityDecision:
     capability: Capability
     confidence: float
     reason: str
+
+
+@dataclass(frozen=True)
+class RoutingDecision:
+    turn: TurnResolution
+    classification: RouteClassification
+    capability: CapabilityDecision
+    qwen_used: bool

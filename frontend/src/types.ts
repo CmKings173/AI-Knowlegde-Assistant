@@ -1,8 +1,29 @@
 export type ChatRole = "user" | "assistant";
 
+export type ChatStatus =
+  | "answered"
+  | "partial"
+  | "insufficient_context"
+  | "out_of_scope"
+  | "conversational"
+  | "clarify"
+  | "generation_failed"
+  | "conflict";
+
+export type RouteCapability =
+  | "rag"
+  | "tool"
+  | "conversation"
+  | "unsupported"
+  | "clarify";
+
 export type ChatHistoryMessage = {
   role: ChatRole;
   content: string;
+  status?: ChatStatus;
+  capability?: RouteCapability;
+  subject?: string;
+  turn_kind?: "independent" | "follow_up" | "repair" | "continuation" | "unresolved";
 };
 
 export type ChatContinuation = {
@@ -46,15 +67,7 @@ export type CitationBlock = {
 };
 
 export type ChatResponse = {
-  status:
-    | "answered"
-    | "partial"
-    | "insufficient_context"
-    | "out_of_scope"
-    | "conversational"
-    | "clarify"
-    | "generation_failed"
-    | "conflict";
+  status: ChatStatus;
   answer: string;
   citations: Citation[];
   retrieval: {
@@ -99,6 +112,15 @@ export type RouteTrace = {
   confidence?: number | null;
   reason?: string | null;
   branch?: string | null;
+  turn_kind?: string | null;
+  turn_reason?: string | null;
+  route_affinity?: string | null;
+  route_classifier?: string | null;
+  route_top_score?: number | null;
+  route_margin?: number | null;
+  route_subject?: string | null;
+  capability?: RouteCapability | null;
+  capability_reason?: string | null;
   candidate_count?: number | null;
   context_count?: number | null;
   best_score?: number | null;
