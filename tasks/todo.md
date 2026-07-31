@@ -9,27 +9,27 @@
 
 ## Task 1: Contracts and Turn Resolver
 
-- [ ] Viết test RED cho typed contracts và turn resolution.
-- [ ] Implement contract và resolver tối thiểu.
-- [ ] Chạy focused tests.
+- [x] Viết test RED cho typed contracts và turn resolution.
+- [x] Implement contract và resolver tối thiểu.
+- [x] Chạy focused tests.
 
 ## Task 2: Embedding Classifier
 
-- [ ] Viết test RED cho threshold, margin, cache và provider error.
-- [ ] Implement classifier không dependency mới.
-- [ ] Chạy Checkpoint A.
+- [x] Viết test RED cho threshold, margin, cache và provider error.
+- [x] Implement classifier không dependency mới.
+- [x] Chạy Checkpoint A.
 
 ## Task 3: Qwen Structured Classifier
 
-- [ ] Viết test RED cho valid/malformed/unknown JSON.
-- [ ] Implement prompt, parser và provider fallback.
-- [ ] Chạy focused tests.
+- [x] Viết test RED cho valid/malformed/unknown JSON.
+- [x] Implement prompt, parser và provider fallback.
+- [x] Chạy focused tests.
 
 ## Task 4: Capability Router
 
-- [ ] Viết test RED cho RAG/Conversation/Unsupported/Clarify/Tool disabled.
-- [ ] Implement capability decisions không default sang RAG.
-- [ ] Chạy Checkpoint B.
+- [x] Viết test RED cho RAG/Conversation/Unsupported/Clarify/Tool disabled.
+- [x] Implement capability decisions không default sang RAG.
+- [x] Chạy Checkpoint B.
 
 ## Task 5: Pipeline Integration
 

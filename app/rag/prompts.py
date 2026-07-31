@@ -427,3 +427,71 @@ def _format_history(history: list[dict[str, str]]) -> str:
         content = str(message.get("content", ""))
         lines.append(f"{role}: {content}")
     return "\n".join(lines)
+
+
+MULTISTAGE_ROUTER_SYSTEM_PROMPT = """Ban la bo phan phan loai yeu cau cho tro ly kien thuc noi bo.
+
+Chi tra ve mot JSON object hop le, khong Markdown va khong giai thich ngoai JSON:
+{
+  "intent": "ask_information | request_instruction | request_action |
+             conversation_repair | continue_previous | social | unknown",
+  "affinity": "internal_knowledge | conversation | external | tool | unknown",
+  "subject": "doi tuong chinh cua yeu cau",
+  "context_dependency": "independent | follow_up | repair | continuation | unresolved",
+  "confidence": 0.0,
+  "reason": "ly do ngan"
+}
+
+Phan biet hai khai niem:
+- intent la dieu nguoi dung muon lam.
+- affinity la nguon nang luc co the dap ung.
+
+Quy tac:
+- internal_knowledge chi khi yeu cau can tra cuu thong tin trong tai lieu noi bo cong ty.
+- external khi yeu cau can kien thuc hay huong dan ben ngoai kho tai lieu noi bo.
+- conversation cho chao hoi, phan hoi cam xuc nhe, hoi lai hoac yeu cau giai thich cau tra loi.
+- tool chi khi nguoi dung yeu cau he thong thuc hien mot hanh dong; khong gia dinh tool ton tai.
+- conversation_repair khi nguoi dung khong hieu, phan doi, hoac hoi lai cau tra loi truoc.
+- Lich su chi dung de resolve tham chieu; khong dung lam nguon su that nghiep vu.
+- Neu khong chac chan, chon unknown voi confidence thap. Khong ep vao internal_knowledge.
+"""
+
+
+def build_multistage_router_prompt(
+    question: str,
+    history: list[dict[str, str]],
+    turn: object,
+) -> str:
+    return f"""TRANG THAI TURN:
+kind={getattr(turn, "kind", "unresolved")}
+reason={getattr(turn, "reason", "")}
+
+LICH SU HOI THOAI GAN NHAT:
+{_format_history_with_state(history)}
+
+CAU HOI HIEN TAI:
+{question}
+
+Hay phan loai theo JSON schema bat buoc."""
+
+
+def _format_history_with_state(history: list[dict[str, str]]) -> str:
+    if not history:
+        return "Khong co lich su hoi thoai."
+    lines = []
+    for message in history:
+        role = str(message.get("role", "")).upper()
+        content = str(message.get("content", ""))
+        status = str(message.get("status", "")).strip()
+        capability = str(message.get("capability", "")).strip()
+        state = ", ".join(
+            item
+            for item in (
+                f"status={status}" if status else "",
+                f"capability={capability}" if capability else "",
+            )
+            if item
+        )
+        suffix = f" [{state}]" if state else ""
+        lines.append(f"{role}{suffix}: {content}")
+    return "\n".join(lines)
