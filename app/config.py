@@ -46,11 +46,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-1.5-flash"
 
     reranker_enabled: bool = False
-    reranker_provider: str = "http"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
-    reranker_url: str = "http://localhost:8082"
-    reranker_api_key: str = ""
-    reranker_timeout_seconds: int = 60
 
     dense_top_k: int = 15
     lexical_top_k: int = 15

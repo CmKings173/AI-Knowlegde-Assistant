@@ -1,14 +1,13 @@
 # Provider Architecture
 
-Providers isolate external/runtime dependencies from core ingestion and RAG logic.
+Providers cô lập dependency ngoài/runtime khỏi core ingestion và RAG logic.
 
 ## Trách nhiệm
 
-- Provide LLM generation through a common interface.
-- Provide embedding generation through a common interface.
-- Provide vector store operations through a common interface.
-- Provide optional HTTP reranking through a common interface.
-- Convert provider errors into domain-specific exceptions where appropriate.
+- Cung cấp LLM generation qua interface chung.
+- Cung cấp embedding generation qua interface chung.
+- Cung cấp vector store operations qua interface chung.
+- Chuyển lỗi provider thành domain-specific exceptions khi phù hợp.
 
 ## Giao diện
 
@@ -19,27 +18,24 @@ Providers isolate external/runtime dependencies from core ingestion and RAG logi
 - `VectorStore.search(vector, top_k, filters=None)`.
 - `VectorStore.delete_document(document_id)`.
 - `VectorStore.list_chunks(limit=10000)`.
-- `Reranker.rerank(query, chunks, top_k)`.
 
 ## Phụ thuộc
 
-- Ollama API for local LLM/embeddings.
-- OpenAI-compatible API for LLM/embedding.
-- Gemini API for LLM/embedding.
-- Qdrant service for vector search/index.
-- Optional TEI/Infinity-compatible `/rerank` endpoint for reranking.
-- Hash/Echo fake providers for smoke tests.
+- Ollama API cho local LLM.
+- OpenAI-compatible API cho LLM/embedding.
+- Gemini API cho LLM/embedding.
+- Qdrant service cho vector search/index.
+- Hash/Echo fake providers cho smoke tests.
 
 ## Current providers
 
 - LLM: `ollama`, `openai`, `gemini`, `echo`.
-- Embedding: `openai`, `gemini`, `ollama`, `hash`.
+- Embedding: `openai`, `gemini`, `hash`.
 - Vector store: `qdrant`.
-- Reranker: optional HTTP provider selected by `RERANKER_PROVIDER`.
 
-## Constraints
+## Ràng buộc
 
-- MUST keep core logic independent from concrete providers.
-- MUST NOT use `hash` or `echo` as production-quality model behavior.
-- MUST propagate Qdrant errors when delete/reindex needs consistency.
-- MUST keep reranking disabled unless the configured `/rerank` endpoint is running and schema-compatible.
+- PHẢI giữ core logic không phụ thuộc provider cụ thể.
+- KHÔNG ĐƯỢC dùng `hash` hoặc `echo` như production-quality model behavior.
+- PHẢI propagate lỗi Qdrant khi delete/reindex cần consistency.
+- TEI/Infinity self-host options mới được document trong `.env.example`, chưa implement.

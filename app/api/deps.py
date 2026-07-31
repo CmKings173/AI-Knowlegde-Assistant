@@ -9,7 +9,6 @@ from app.providers.embeddings.api_provider import create_embedding_provider
 from app.providers.llm.factory import create_llm_provider
 from app.providers.vector_store.qdrant_store import QdrantVectorStore
 from app.rag.pipeline import RAGPipeline
-from app.rag.reranker import create_reranker
 from app.rag.retriever import Retriever
 
 
@@ -32,12 +31,7 @@ def get_manifest_store() -> ManifestStore:
 @lru_cache
 def get_retriever() -> Retriever:
     settings = get_settings()
-    return Retriever(
-        settings,
-        get_embedding_provider(),
-        get_vector_store(),
-        create_reranker(settings),
-    )
+    return Retriever(settings, get_embedding_provider(), get_vector_store())
 
 
 @lru_cache

@@ -37,20 +37,6 @@ SUPPORT_TERM_ALIASES: dict[str, tuple[str, ...]] = {
         "windows r",
         "\\\\10.10.10.200",
     ),
-    "PROCEDURE_MANAGER_APPROVAL": (
-        "quan ly truc tiep",
-        "nguoi quan ly",
-        "cap tren",
-        "xin phep",
-        "duoc phep",
-        "cho phep",
-        "phe duyet",
-    ),
-    "PROCEDURE_REASON": (
-        "ly do",
-        "noi ro ly do",
-        "neu ro ly do",
-    ),
 }
 
 

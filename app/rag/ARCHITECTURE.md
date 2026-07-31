@@ -1,40 +1,33 @@
 # RAG Architecture
 
-RAG service turns a Vietnamese user question into a grounded answer with citations.
+RAG service biến câu hỏi người dùng thành câu trả lời grounded với citation.
 
 ## Trách nhiệm
 
 - Normalize query.
-- Classify intent and escalate uncertain cases to semantic routing.
-- Retrieve candidates with dense Qdrant search and BM25 lexical search.
-- Apply metadata filtering before dense search, BM25 search and RRF fusion.
-- Fuse rankings with RRF.
-- Optionally rerank fused candidates through a configured HTTP `/rerank` provider.
-- Run lightweight evidence relevance gating for high-risk procedural/policy deterministic queries.
+- Retrieve candidates bằng dense search và BM25.
+- Apply metadata filtering trước hybrid search.
+- Fuse rankings bằng RRF.
 - Build bounded context.
-- Build citations and image metadata.
-- Call the LLM with the prompt contract.
+- Build citations và image metadata.
+- Gọi LLM với prompt contract.
 - Validate/remove unknown citations.
-- Validate key facts/support terms against cited context.
 
 ## Giao diện
 
-- `RAGPipeline.answer(question, filters=None, history=None, continuation=None)`.
-- `RAGPipeline.answer_stream(question, filters=None, history=None, continuation=None)`.
+- `RAGPipeline.answer(question, filters=None)`.
 - `Retriever.retrieve(query, filters=None)`.
-- `Reranker.rerank(query, chunks, top_k)`.
 - `build_context(chunks, max_tokens)`.
 - `build_user_prompt(question, context)`.
 - `build_citations(chunks, image_lookup=None)`.
 
 ## Phụ thuộc
 
-- Embedding provider to embed query.
-- Qdrant vector store for dense search.
-- BM25 lexical index for keyword search.
-- Optional HTTP reranker provider for TEI/Infinity-compatible `/rerank` endpoints.
-- LLM provider for generation and semantic routing.
-- Document image metadata for citation images.
+- Embedding provider để embed query.
+- Qdrant vector store để dense search.
+- BM25 lexical index để keyword search.
+- LLM provider để generate answer.
+- Document image metadata để trả citation images.
 
 ## Retrieval flow
 
@@ -45,28 +38,25 @@ question
 -> dense search in Qdrant
 -> BM25 lexical search
 -> RRF fusion
--> optional rerank
--> bounded context selection
--> high-risk evidence relevance gate
+-> select bounded context
 -> build citations and image metadata
 -> call LLM
--> citation + fact/support-term validation
+-> validate/remove unknown citations
 ```
 
 ## Prompt contract
 
-LLM receives:
+LLM nhận:
 
-- system prompt with grounding/refusal rules;
-- user prompt containing bounded `CONTEXT` blocks with `SOURCE_n` IDs;
+- system prompt với grounding/refusal rules;
+- user prompt chứa `CONTEXT` blocks với `SOURCE_n` IDs;
 - user question.
 
-CONTEXT is untrusted data and cannot override the system prompt.
+CONTEXT là dữ liệu không tin cậy và không được override system prompt.
 
-## Constraints
+## Ràng buộc
 
-- MUST limit final context with `FINAL_CONTEXT_TOP_N` and `MAX_CONTEXT_TOKENS`.
-- MUST apply metadata filters before hybrid search.
-- MUST refuse when context is insufficient.
-- MUST NOT fabricate policy, procedure, IP, port, account, password or company rules.
-- Reranker is optional and disabled by default until a compatible `/rerank` endpoint is running.
+- PHẢI giới hạn final context bằng `FINAL_CONTEXT_TOP_N` và `MAX_CONTEXT_TOKENS`.
+- PHẢI apply metadata filters trước hybrid search.
+- KHÔNG ĐƯỢC bịa nếu context không đủ.
+- Reranker hiện là placeholder; behavior chính là RRF top-k.

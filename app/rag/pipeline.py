@@ -37,7 +37,6 @@ from app.rag.prompts import (
     build_user_prompt,
 )
 from app.rag.query_normalizer import QueryNormalizer
-from app.rag.relevance import validate_context_relevance
 from app.rag.response_validator import (
     citation_ids_in_answer,
     contains_disallowed_cjk,
@@ -241,7 +240,7 @@ class RAGPipeline:
                 },
             )
         intent = self.intent_router.classify(normalized, has_history=bool(history))
-        if _should_use_semantic_router(intent):
+        if intent.intent == Intent.AMBIGUOUS:
             with measure_ms(timing, "router"):
                 intent = await self._route_with_llm(normalized, history, intent)
         trace.update(_intent_trace(intent))
@@ -467,39 +466,6 @@ class RAGPipeline:
             retrieval.chunks[: self.settings.final_context_top_n],
             self.settings.max_context_tokens,
         )
-        relevance = (
-            validate_context_relevance(normalized, selected)
-            if not intent.llm_router_used
-            else None
-        )
-        if relevance and not relevance.passed:
-            timing["total"] = int((time.perf_counter() - total_start) * 1000)
-            _trace(
-                "rag_relevance_rejected",
-                branch="knowledge",
-                reason=relevance.reason,
-                coverage=round(relevance.coverage, 3),
-                important_terms=sorted(relevance.important_terms),
-                matched_terms=sorted(relevance.matched_terms),
-            )
-            return _response(
-                status=FALLBACK_STATUS,
-                answer=REFUSAL,
-                citations=[],
-                candidate_count=retrieval.candidate_count,
-                context_count=len(selected),
-                reranker_used=retrieval.reranker_used,
-                timing=timing,
-                trace={
-                    **trace,
-                    "branch": "knowledge_relevance_refusal",
-                    "candidate_count": retrieval.candidate_count,
-                    "context_count": len(selected),
-                    "best_score": round(best_score, 6),
-                    "relevance_error": relevance.reason,
-                    "relevance_coverage": round(relevance.coverage, 3),
-                },
-            )
         image_lookup = load_image_lookup(
             self.settings.documents_dir,
             {chunk.document_id for chunk in selected},
@@ -630,10 +596,6 @@ class RAGPipeline:
             return
 
         intent = self.intent_router.classify(normalized, has_history=bool(history))
-        if _should_use_semantic_router(intent):
-            response = await self.answer(question, filters, history, continuation)
-            yield _stream_event("final", response)
-            return
         if filters_select_no_documents(filters) and intent.intent in {
             Intent.BROAD_SECTION_QUERY,
             Intent.KNOWLEDGE_QUERY,
@@ -780,7 +742,7 @@ class RAGPipeline:
                 build_router_prompt(question, history),
             )
         except Exception:  # noqa: BLE001
-            return _semantic_router_failure_fallback(fallback)
+            return fallback
         routed = parse_router_output(raw_answer)
         if routed is None:
             return IntentDecision(
@@ -1108,31 +1070,6 @@ def parse_model_output(
     )
 
 
-def _should_use_semantic_router(intent: IntentDecision) -> bool:
-    if intent.intent == Intent.AMBIGUOUS:
-        return True
-    if intent.intent == Intent.OUT_OF_SCOPE:
-        return intent.reason == "non_domain_statement" and intent.confidence <= 0.65
-    if intent.intent == Intent.FOLLOW_UP:
-        return (
-            intent.subtype == FollowUpSubtype.CASUAL_FOLLOW_UP
-            and intent.reason == "short_message_with_history"
-            and intent.confidence <= 0.65
-        )
-    return False
-
-
-def _semantic_router_failure_fallback(fallback: IntentDecision) -> IntentDecision:
-    if _should_use_semantic_router(fallback):
-        return IntentDecision(
-            Intent.CLARIFY,
-            0.5,
-            "semantic_router_failed",
-            llm_router_used=True,
-        )
-    return fallback
-
-
 def parse_router_output(output: str) -> IntentDecision | None:
     cleaned = _strip_json_fence(output.strip())
     try:
@@ -1145,24 +1082,18 @@ def parse_router_output(output: str) -> IntentDecision | None:
     if not isinstance(intent_value, str):
         return None
     intent_map = {
-        "greeting": Intent.CONVERSATIONAL_LLM,
-        "internal_knowledge": Intent.KNOWLEDGE_QUERY,
         "conversational_llm": Intent.CONVERSATIONAL_LLM,
         "follow_up": Intent.FOLLOW_UP,
-        "source_challenge": Intent.FOLLOW_UP,
         "broad_section_query": Intent.BROAD_SECTION_QUERY,
         "knowledge_query": Intent.KNOWLEDGE_QUERY,
         "out_of_scope": Intent.OUT_OF_SCOPE,
         "clarify": Intent.CLARIFY,
-        "ambiguous": Intent.AMBIGUOUS,
     }
     intent = intent_map.get(intent_value)
     if intent is None:
         return None
 
     subtype = _parse_follow_up_subtype(data.get("subtype"))
-    if intent_value == "source_challenge" and subtype == FollowUpSubtype.NONE:
-        subtype = FollowUpSubtype.SOURCE_CHALLENGE
     confidence = data.get("confidence")
     if not isinstance(confidence, int | float):
         confidence = 0.55
@@ -1506,8 +1437,6 @@ def _clean_trace(trace: dict[str, object]) -> dict[str, object]:
         "best_score",
         "parse_error",
         "fact_guard_error",
-        "relevance_coverage",
-        "relevance_error",
         "rewrite_used",
         "llm_router_used",
     }

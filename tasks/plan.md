@@ -1,51 +1,42 @@
-# Implementation Plan: Generic Evidence-Gated Retrieval
+# Implementation Plan: RAG Router, Faithfulness And Citation Hardening
 
 ## Overview
-
-Improve RAG hallucination resistance without adding endless domain-specific keyword rules. The system now prefers generic evidence controls: optional reranking, pre-generation evidence relevance checks for high-risk procedural/policy queries, and post-generation support-term validation for cited procedural claims.
+Fix the current production-risk bugs where out-of-scope questions can be answered by the conversational LLM, vague NAS follow-ups can bypass retrieval or retrieve the wrong section, cited answers can contain unsupported modality claims, and frontend citation labels can show mismatched `SOURCE_X` markers.
 
 ## Architecture Decisions
-
-- Keep deterministic intent rules as fast paths only; do not add a growing HR/leave-specific rule list.
-- Use semantic routing for uncertain cases.
-- Add a lightweight evidence relevance gate for high-risk procedural/policy deterministic queries.
-- Extend fact validation so important procedural claims in the answer must be present in the cited context.
-- Wire reranking as an optional `/rerank` provider, disabled by default until a real self-hosted endpoint is configured.
+- Keep rule-based fast paths for clear cases, but tighten domain gating before any conversational LLM call.
+- Route contextual NAS/mobile/detail follow-ups into query rewrite plus retrieval instead of conversational generation.
+- Extend fact validation from day/time claims to critical retrieval modality terms such as mobile app vs internal network access.
+- Keep citation IDs stable from backend to frontend; UI labels must reflect `citation_id`, not render order.
+- Use regression tests for each reported behavior before implementation.
 
 ## Task List
 
-### Phase 1: Guard the reported hallucination
+### Phase 1: Reproduction Tests
+- [ ] Add router tests for out-of-scope cat questions.
+- [ ] Add router tests for NAS mobile follow-up classification.
+- [ ] Add parser/UI tests for comma-separated `SOURCE_X` markers.
+- [ ] Add guard tests for answers that mention mobile/app terms not supported by cited context.
 
-- [x] Add regression tests for a query where retrieved context is near but not sufficient.
-- [x] Extend fact/evidence validation so cited context must contain important answer claims such as manager permission/reason/procedure terms.
+### Phase 2: Backend Guardrails
+- [ ] Tighten out-of-scope gating before conversational LLM.
+- [ ] Expand contextual follow-up detection for mobile/detail terms.
+- [ ] Strengthen query rewrite prompt for vague follow-ups.
+- [ ] Extend fact guard with critical support terms.
 
-### Phase 2: Generic retrieval quality controls
-
-- [x] Add a reusable relevance gate that can reject weak procedural/policy evidence before LLM generation.
-- [x] Surface the relevance gate decision in response trace.
-- [x] Keep the gate narrow enough to avoid blocking normal technical-guide retrieval.
-
-### Phase 3: Reranker readiness and docs
-
-- [x] Wire the existing reranker abstraction into retriever behavior when enabled.
-- [x] Document self-hosted `bge-reranker-v2-m3` configuration for GX10.
-- [x] Update RAG/provider progress docs and ADR.
+### Phase 3: Frontend Citation UX
+- [ ] Convert comma-separated source markers like `[SOURCE_1, SOURCE_3]` to `[1], [3]`.
+- [ ] Render source panel labels from `citation.citation_id`.
 
 ### Checkpoint
-
-- [x] `uv run ruff check . --no-cache`
-- [x] `uv run pytest`
-- [x] `uv run python scripts/check_harness.py`
-- [x] `npm run build` from `frontend/`
+- [ ] `uv run ruff check . --no-cache`
+- [ ] `uv run python -m pytest tests/unit -q`
+- [ ] `npm run build` from `frontend/`
 
 ## Risks and Mitigations
-
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Relevance gate is too strict | False `insufficient_context` responses | Gate only high-risk procedural/policy deterministic queries; semantic-router cases rely on reranker/fact guard. |
-| Reranker endpoint unavailable | Retrieval failure when enabled | Default remains disabled; enable only after health-testing `/rerank`. |
-| Claim guard becomes keyword-heavy | Maintenance burden | Guard generic procedural support terms, not every business intent. |
-
-## Open Questions
-
-- Which self-host endpoint will be used in production: TEI, Infinity, or another compatible `/rerank` API?
+| Over-blocking normal chat | Medium | Only block clear out-of-domain factual topics before LLM; keep greetings/meta questions conversational |
+| False positive modality guard | Medium | Guard only critical explicit terms that must be present in cited context |
+| Follow-up rewrite adds unsupported context | High | Prompt rewrite to use only current question plus conversation history, not external assumptions |
+| Citation label mismatch remains confusing | Medium | Derive displayed label directly from backend `citation_id` |
