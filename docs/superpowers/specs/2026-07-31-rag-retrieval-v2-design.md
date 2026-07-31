@@ -1,66 +1,68 @@
-# RAG Retrieval V2 Design
+# Thiết kế Retrieval RAG V2
 
-Date: 2026-07-31
+Ngày: 2026-07-31
 
-## Status
+## Trạng thái
 
-Approved in discussion. This document is the implementation source of truth and
-must be reviewed before code changes begin.
+Thiết kế đã được thống nhất trong quá trình thảo luận. Tài liệu này là nguồn sự
+thật cho quá trình triển khai và phải được người dùng duyệt trước khi bắt đầu sửa
+code.
 
-## Problem
+## Vấn đề
 
-The current RAG path can retrieve a correct chunk but also place unrelated chunks
-into the final context. It then accepts a generated answer when citation IDs are
-syntactically valid even if the cited source does not support the claim.
+Luồng RAG hiện tại có thể tìm được chunk đúng nhưng vẫn đưa các chunk không liên
+quan vào context cuối. Sau đó hệ thống chấp nhận câu trả lời nếu citation ID hợp
+lệ về cú pháp, ngay cả khi nguồn được dẫn không hỗ trợ cho kết luận của LLM.
 
-The observed regression has these systemic causes:
+Các nguyên nhân mang tính hệ thống:
 
-- RRF rank-fusion scores are treated like relevance confidence.
-- The final context is selected by taking a fixed number of top-ranked chunks.
-- Raw dense and lexical evidence is not retained for final selection.
-- Query routing and evidence gating depend on growing keyword lists.
-- Metadata supplied by ingestion may be incorrect and is unsafe as an inferred
-  hard filter.
-- Citation validation checks source IDs, not whether the selected context is
-  coherent enough to ground an answer.
-- Existing tests rely heavily on fake retrieval results and do not prove
-  end-to-end retrieval and answer behavior over real indexed documents.
+- Điểm hợp nhất thứ hạng RRF đang bị sử dụng như điểm tin cậy về độ liên quan.
+- Context cuối được tạo bằng cách lấy một số lượng chunk cố định đứng đầu.
+- Điểm dense và BM25 gốc không được giữ lại để phục vụ bước chọn context.
+- Routing và evidence gate phụ thuộc vào danh sách keyword ngày càng dài.
+- Metadata do ingestion tạo có thể sai nên không an toàn nếu dùng làm hard filter
+  suy luận tự động.
+- Citation validator chỉ kiểm tra source ID, chưa chứng minh context được chọn đủ
+  sạch để làm căn cứ trả lời.
+- Phần lớn test hiện tại dùng retriever giả và chưa chứng minh chất lượng
+  end-to-end trên tài liệu đã được index thực tế.
 
-Commit `4721cf0` is the confirmed stable baseline. Commit `4ac2f57` and its local
-follow-up experiments are preserved but are not the base for V2.
+Commit `4721cf0` là baseline ổn định đã được xác nhận. Commit `4ac2f57` và các thử
+nghiệm tiếp theo được bảo toàn để tham khảo nhưng không được dùng làm nền cho V2.
 
-## Goals
+## Mục tiêu
 
-- Restore a stable serving baseline without rewriting Git history.
-- Improve retrieval and final-context precision for unseen Vietnamese phrasing.
-- Use one conversational LLM model: Qwen through Ollama.
-- Keep the normal path to one Qwen generation call.
-- Allow one adaptive rewrite call with the same Qwen only when initial retrieval
-  is demonstrably weak or incoherent.
-- Keep dense embeddings, BM25 and Qdrant.
-- Return partial answers when only part of a question is supported.
-- Keep failure states distinguishable and observable.
-- Prove improvement with a tracked, end-to-end evaluation dataset.
+- Khôi phục baseline ổn định mà không viết lại lịch sử Git.
+- Tăng độ chính xác của retrieval và context cuối với các cách diễn đạt tiếng Việt
+  chưa từng gặp.
+- Chỉ sử dụng một LLM hội thoại: Qwen chạy qua Ollama.
+- Luồng thông thường chỉ gọi Qwen một lần để sinh câu trả lời.
+- Chỉ cho phép gọi chính Qwen để rewrite khi retrieval ban đầu thực sự yếu hoặc
+  lẫn nhiều chủ đề.
+- Tiếp tục sử dụng embedding, BM25 và Qdrant.
+- Trả lời một phần khi tài liệu chỉ hỗ trợ một phần câu hỏi.
+- Phân biệt rõ các trạng thái lỗi và quan sát được lỗi phát sinh ở tầng nào.
+- Chứng minh V2 tốt hơn bằng bộ evaluation end-to-end được lưu trong Git.
 
-## Non-goals
+## Ngoài phạm vi
 
-- No dedicated planner model.
-- No reranker model or Infinity dependency in V2.
-- No LLM verifier model.
-- No Redis or new database dependency.
-- No domain-specific keyword patch for individual reported questions.
-- No attempt to guarantee correct answers for every possible input.
-- No CI/CD work in this scope.
+- Không dùng model planner riêng.
+- Không dùng reranker model hoặc Infinity trong V2.
+- Không dùng model verifier riêng.
+- Không thêm Redis hoặc database mới.
+- Không vá keyword riêng cho từng câu hỏi được báo lỗi.
+- Không tuyên bố có thể trả lời đúng mọi input có thể tồn tại.
+- Không thực hiện CI/CD trong phạm vi này.
 
-## Git recovery
+## Phục hồi Git
 
-The current experimental state is preserved at:
+Trạng thái thử nghiệm hiện tại được bảo toàn tại:
 
 ```text
 archive-rag-experiments-e931279
 ```
 
-The remote regression is reverted without force-pushing:
+Regression trên remote được revert mà không force-push:
 
 ```text
 origin/main: 4ac2f57
@@ -68,76 +70,76 @@ origin/main: 4ac2f57
     └── 42433c7 Revert "Harden RAG evidence gating and add optional reranker"
 ```
 
-V2 is developed from the restored tree on:
+V2 được phát triển từ source đã phục hồi trên branch:
 
 ```text
 feature-rag-retrieval-v2
 ```
 
-The hotfix and feature branches must be reviewed and tested independently before
-merge. Future fixes and features must not be committed directly to `main`.
+Hotfix và feature branch phải được review, kiểm thử độc lập trước khi merge. Các
+fix hoặc feature tiếp theo không được commit trực tiếp lên `main`.
 
-## Architecture
+## Kiến trúc
 
 ```text
-User query + bounded conversation history + explicit document scope
-→ Normalize
-→ Apply hard access/document/version filters
-→ Initial dense search + BM25 search
-→ RRF candidate fusion
-→ Candidate quality assessment
-   ├── coherent evidence: continue
-   └── weak or cross-domain evidence:
-       → Qwen structured query rewrite
-       → one second retrieval pass
-→ Evidence/context selection
-→ Qwen grounded answer generation
-→ Deterministic response and citation validation
-→ API response with citations and related images
+User query + lịch sử hội thoại giới hạn + document scope tường minh
+→ Chuẩn hóa query
+→ Áp dụng hard filter về quyền, tài liệu và phiên bản
+→ Dense search + BM25 lần đầu
+→ Hợp nhất candidate bằng RRF
+→ Đánh giá chất lượng candidate
+   ├── Evidence nhất quán: tiếp tục
+   └── Evidence yếu hoặc lẫn domain:
+       → Qwen rewrite query theo JSON schema
+       → Retrieval lần hai
+→ Chọn evidence và xây context
+→ Qwen sinh câu trả lời grounded
+→ Kiểm tra response và citation bằng logic deterministic
+→ API trả câu trả lời, nguồn và ảnh liên quan
 ```
 
-### Model contract
+### Hợp đồng sử dụng model
 
-Qwen is the only conversational LLM. Embedding remains a separate embedding
-provider because vector retrieval requires it, but it is not a chat/planning
-model.
+Qwen là LLM hội thoại duy nhất. Hệ thống vẫn cần embedding provider để tìm kiếm
+vector, nhưng embedding provider không phải model hội thoại hoặc planner.
 
-The normal answer path invokes Qwen once. An adaptive path may invoke the same
-Qwen once to produce a short structured rewrite and once to generate the answer.
-Rewrite failure falls back to the original retrieval result.
+Luồng thông thường gọi Qwen một lần. Luồng adaptive có thể gọi cùng Qwen một lần
+để tạo rewrite ngắn và một lần để sinh câu trả lời. Nếu rewrite lỗi, hệ thống
+fallback về kết quả retrieval của query gốc.
 
 ## Routing
 
-Deterministic routing is limited to safe fast paths:
+Deterministic routing chỉ giữ những fast path an toàn:
 
-- empty input;
-- clear greeting;
-- explicit continuation;
-- `document_scope="selected"` with no selected documents.
+- Input rỗng.
+- Lời chào rõ ràng.
+- Yêu cầu xem tiếp rõ ràng.
+- `document_scope="selected"` nhưng không có tài liệu được chọn.
 
-Other inputs should attempt retrieval before being classified as unavailable or
-out of scope. Retrieval must not depend on an ever-growing list of HR, IT or
-policy phrases.
+Các input khác phải ưu tiên thử retrieval trước khi kết luận không có thông tin
+hoặc ngoài phạm vi. Retrieval không được phụ thuộc vào danh sách cụm từ HR, IT hay
+policy tăng mãi theo từng lỗi.
 
-Conversation history may resolve a follow-up subject, but it is never evidence.
-Only retrieved document context can support business facts.
+Lịch sử hội thoại có thể được dùng để xác định đối tượng của câu hỏi tiếp nối,
+nhưng không bao giờ được coi là evidence. Chỉ context lấy từ tài liệu mới được
+dùng để hỗ trợ thông tin nghiệp vụ.
 
 ## Retrieval
 
-### Candidate generation
+### Tạo candidate
 
-For each retrieval pass:
+Mỗi lượt retrieval thực hiện:
 
-1. Apply hard filters.
-2. Embed the search query.
-3. Run Qdrant dense search.
-4. Run BM25 lexical search.
-5. Fuse the ranked candidate IDs with RRF.
+1. Áp dụng hard filter.
+2. Embed search query.
+3. Dense search trong Qdrant.
+4. Lexical search bằng BM25.
+5. Hợp nhất danh sách candidate bằng RRF.
 
-RRF is only a candidate-fusion mechanism. It must not be interpreted as semantic
-confidence.
+RRF chỉ là cơ chế hợp nhất thứ hạng candidate. Điểm RRF không được coi là
+semantic confidence.
 
-Each candidate must retain retrieval provenance:
+Mỗi candidate phải giữ lại đầy đủ nguồn gốc retrieval:
 
 ```json
 {
@@ -149,236 +151,230 @@ Each candidate must retain retrieval provenance:
   "matched_queries": ["original"],
   "document_id": "doc-id",
   "domain": "HR_POLICY",
-  "section": "section path"
+  "section": "đường dẫn section"
 }
 ```
 
-Missing dense or lexical participation is represented explicitly rather than
-inventing a score.
+Nếu candidate không xuất hiện trong dense hoặc BM25 thì phải ghi nhận rõ là
+không có tín hiệu đó, không tự tạo điểm giả.
 
-### Hard and soft metadata
+### Hard metadata và soft metadata
 
-Hard filters are limited to:
+Hard filter chỉ gồm:
 
-- document IDs explicitly selected by the user;
-- authorization/access scope;
-- published/current document version;
-- document readiness.
+- Document ID do người dùng chọn tường minh.
+- Phạm vi quyền truy cập.
+- Phiên bản tài liệu hiện hành đã publish.
+- Trạng thái tài liệu sẵn sàng retrieval.
 
-Inferred domain and knowledge type are ranking signals only. They must not remove
-global candidates because ingestion metadata can be wrong.
+Domain và knowledge type do hệ thống suy luận chỉ là tín hiệu phục vụ xếp hạng.
+Chúng không được loại hoàn toàn candidate global vì metadata ingestion có thể sai.
 
-### Candidate quality assessment
+### Đánh giá chất lượng candidate
 
-Quality is evaluated using calibrated retrieval signals, not a single arbitrary
-RRF threshold:
+Chất lượng được đánh giá từ nhiều tín hiệu đã hiệu chỉnh, không dựa vào một
+ngưỡng RRF tùy ý:
 
-- raw dense similarity;
-- normalized lexical evidence;
-- agreement between dense and lexical retrieval;
-- score separation;
-- concentration versus dispersion across document/domain;
-- duplicate-content ratio.
+- Raw dense similarity.
+- Lexical evidence đã chuẩn hóa.
+- Mức đồng thuận giữa dense và BM25.
+- Khoảng cách điểm giữa các candidate.
+- Mức tập trung hoặc phân tán giữa các document/domain.
+- Tỷ lệ nội dung trùng lặp.
 
-Thresholds must be calibrated against the tracked evaluation dataset. Low-quality
-or incoherent results trigger adaptive rewrite; they do not immediately trigger a
-false `insufficient_context` response.
+Các ngưỡng phải được hiệu chỉnh bằng bộ evaluation có version trong Git. Kết quả
+yếu hoặc không nhất quán sẽ kích hoạt adaptive rewrite, không được lập tức trả
+`insufficient_context`.
 
 ### Adaptive rewrite
 
-When initial retrieval is weak or incoherent, Qwen receives only:
+Khi retrieval ban đầu yếu hoặc không nhất quán, Qwen chỉ nhận:
 
-- the current user query;
-- bounded history when the query is a follow-up;
-- a strict JSON rewrite schema.
+- User query hiện tại.
+- Lịch sử giới hạn nếu đây là follow-up.
+- JSON schema nghiêm ngặt dành cho rewrite.
 
-It must not answer the question or invent facts. The original query is always
-retained, and the rewrite adds at most two short search queries. A second
-retrieval pass fuses original and rewritten-query candidates.
+Qwen không được trả lời câu hỏi hoặc tạo fact. Query gốc luôn được giữ lại và
+rewrite chỉ được bổ sung tối đa hai search query ngắn. Retrieval lần hai hợp nhất
+candidate của query gốc và các query rewrite.
 
-## Evidence selection
+## Chọn evidence
 
-The final context must not be `retrieval.chunks[:N]`.
+Context cuối không được tiếp tục dùng `retrieval.chunks[:N]`.
 
-The selector must:
+Evidence selector phải:
 
-- reject candidates below calibrated evidence quality;
-- avoid unrelated cross-domain chunks when coherent evidence exists;
-- deduplicate substantially overlapping content;
-- prefer coverage of distinct relevant sections;
-- preserve explicit document scope;
-- use same-document structure only when it improves evidence coverage;
-- order the strongest evidence early and avoid burying critical evidence;
-- enforce the token budget after evidence selection.
+- Loại candidate dưới ngưỡng chất lượng đã hiệu chỉnh.
+- Tránh chunk khác domain khi đã có evidence cùng domain nhất quán.
+- Loại nội dung trùng lặp đáng kể.
+- Ưu tiên bao phủ các section liên quan khác nhau.
+- Giữ đúng document scope người dùng đã chọn.
+- Chỉ mở rộng cấu trúc trong cùng tài liệu khi giúp tăng độ phủ evidence.
+- Đưa evidence mạnh lên vị trí dễ chú ý, không chôn thông tin quan trọng.
+- Áp dụng token budget sau khi chọn evidence.
 
-The selector may return fewer than `FINAL_CONTEXT_TOP_N` chunks. A fixed number
-is a maximum, not a target.
+Selector có thể trả ít hơn `FINAL_CONTEXT_TOP_N`. Đây là giới hạn tối đa, không
+phải số lượng chunk bắt buộc phải lấy.
 
-## Generation
+## Sinh câu trả lời
 
-Qwen receives:
+Qwen nhận:
 
-1. system prompt;
-2. bounded, source-labelled context;
-3. the user query;
-4. bounded history only when needed for follow-up resolution.
+1. System prompt.
+2. Context giới hạn, có gắn source ID.
+3. User query.
+4. Lịch sử giới hạn nếu cần hiểu follow-up.
 
-Generation rules:
+Quy tắc sinh:
 
-- use only context as business evidence;
-- cite every important business claim;
-- do not infer a specific penalty, policy, IP, port, credential or step that is
-  not present;
-- return `partial` when evidence supports only part of the request;
-- return `insufficient_context` only when core evidence is absent;
-- return concise Vietnamese with correct diacritics.
+- Chỉ dùng context làm evidence nghiệp vụ.
+- Mọi kết luận nghiệp vụ quan trọng phải có citation.
+- Không tự suy ra mức phạt, chính sách, IP, port, tài khoản hoặc bước thực hiện
+  không có trong nguồn.
+- Trả `partial` khi evidence chỉ hỗ trợ một phần yêu cầu.
+- Chỉ trả `insufficient_context` khi không có evidence cốt lõi.
+- Trả lời tiếng Việt có dấu, ngắn gọn và đúng trọng tâm.
 
-One retry is allowed only for malformed structured output or disallowed language.
+Chỉ retry một lần nếu structured output sai định dạng hoặc sinh ngôn ngữ không
+được phép.
 
-## Validation and statuses
+## Validation và trạng thái
 
-The heuristic fact guard remains disabled and is not reintroduced in V2.
+Fact guard heuristic tiếp tục bị tắt và không được đưa trở lại V2.
 
-Deterministic validation covers:
+Deterministic validator chỉ kiểm tra những điều có thể chứng minh chắc chắn:
 
-- valid JSON response schema;
-- allowed status;
-- known `SOURCE_n` identifiers;
-- exact agreement between inline citations and returned source IDs;
-- critical literal values such as times, IPs and ports appearing in cited
-  evidence.
+- Response là JSON hợp lệ theo schema.
+- Status nằm trong danh sách cho phép.
+- `SOURCE_n` thực sự tồn tại trong context.
+- Citation inline và danh sách source khớp chính xác.
+- Giá trị literal quan trọng như thời gian, IP và port có trong evidence được cite.
 
-It must not pretend to perform general semantic entailment.
+Validator không được giả vờ thực hiện semantic entailment tổng quát.
 
-Statuses remain distinct:
+Các trạng thái phải được phân biệt:
 
-- `answered`: core requested information is supported;
-- `partial`: only some requested information is supported;
-- `insufficient_context`: retrieval has no usable core evidence;
-- `conflict`: retrieved sources disagree;
-- `generation_failed`: Qwen output remains unusable after the allowed retry;
-- dependency failure/degradation is reported separately and must not masquerade
-  as missing documentation.
+- `answered`: evidence hỗ trợ thông tin cốt lõi được hỏi.
+- `partial`: evidence chỉ hỗ trợ một phần.
+- `insufficient_context`: retrieval không có evidence cốt lõi sử dụng được.
+- `conflict`: các nguồn được retrieve mâu thuẫn.
+- `generation_failed`: output của Qwen vẫn không sử dụng được sau retry.
+- Lỗi hoặc degraded dependency phải được báo riêng, không được giả thành thiếu
+  tài liệu.
 
-## Error handling
+## Xử lý lỗi
 
-- Rewrite timeout or invalid rewrite: use original candidates.
-- Qdrant unavailable: return a dependency error; do not ask Qwen to answer from
-  memory.
-- BM25 unavailable: dense-only degradation may continue with explicit logging.
-- Qwen timeout/failure: return `generation_failed`.
-- No usable candidate: return the standard gentle insufficient-context response.
-- Optional future dependencies must be fail-open or remain disabled.
+- Rewrite timeout hoặc sai định dạng: dùng candidate từ query gốc.
+- Qdrant không hoạt động: trả dependency error, không để Qwen trả lời theo trí nhớ.
+- BM25 không hoạt động: có thể degraded về dense-only nhưng phải log rõ.
+- Qwen timeout hoặc lỗi: trả `generation_failed`.
+- Không có candidate sử dụng được: trả thông báo thiếu context nhẹ nhàng.
+- Dependency tùy chọn trong tương lai phải fail-open hoặc tiếp tục bị tắt.
 
 ## Observability
 
-Each request trace must make the failing stage identifiable:
+Trace của mỗi request phải chỉ ra được tầng gây lỗi:
 
-- route and fast-path reason;
-- original and rewritten search queries;
-- dense/BM25 ranks and scores;
-- RRF score and retrieval provenance;
-- quality-assessment decision and reasons;
-- selected versus rejected chunk IDs with reasons;
-- context token count;
-- generation attempts and latency;
-- final status and citation IDs.
+- Route và lý do dùng fast path.
+- Query gốc và query rewrite.
+- Dense/BM25 rank và score.
+- RRF score cùng nguồn gốc retrieval.
+- Quyết định đánh giá chất lượng và lý do.
+- Chunk được chọn, chunk bị loại và lý do tương ứng.
+- Số token context.
+- Số lần gọi generation và latency.
+- Status cuối và citation ID.
 
-Logs must not contain secrets or full sensitive document content.
+Log không được chứa secret hoặc toàn bộ nội dung tài liệu nhạy cảm.
 
 ## Evaluation
 
-The evaluation dataset must be versioned in the repository rather than stored
-only under ignored runtime `data/`.
+Bộ evaluation phải được version hóa trong repo, không chỉ nằm dưới thư mục
+runtime `data/` đang bị Git ignore.
 
-It must cover:
+Các nhóm test:
 
-- exact factual questions;
-- paraphrases and colloquial Vietnamese;
-- light spelling mistakes;
-- consequence questions;
-- procedural questions;
-- broad/list questions;
-- multi-part questions;
-- history-dependent follow-ups;
-- partially answerable questions;
-- unanswerable internal questions;
-- clearly out-of-scope conversation;
-- cross-domain distractors;
-- selected-document filtering;
-- newly ingested documents.
+- Câu hỏi fact chính xác.
+- Paraphrase và cách nói tiếng Việt đời thường.
+- Lỗi chính tả nhẹ.
+- Câu hỏi về hậu quả.
+- Câu hỏi quy trình.
+- Câu hỏi liệt kê hoặc tổng hợp.
+- Câu hỏi nhiều ý.
+- Follow-up phụ thuộc lịch sử.
+- Câu chỉ trả lời được một phần.
+- Câu nội bộ nhưng tài liệu không có thông tin.
+- Hội thoại rõ ràng ngoài phạm vi.
+- Candidate nhiễu khác domain.
+- Lọc theo tài liệu được chọn.
+- Tài liệu mới được ingestion.
 
-Representative regression cases are examples of categories, not keyword rules.
-At least one holdout set must remain unused while tuning thresholds.
+Các câu regression đại diện cho nhóm hành vi, không được biến thành keyword rule.
+Phải có ít nhất một holdout set không được dùng khi điều chỉnh threshold.
 
-Required reports:
+Các chỉ số bắt buộc:
 
-- Recall@K and MRR;
-- expected-section hit rate;
-- final-context precision;
-- wrong-domain context rate;
-- citation-section correctness;
-- answer/refusal/partial outcome accuracy;
-- critical unsupported-fact count;
-- normal-path and adaptive-path latency percentiles.
+- Recall@K và MRR.
+- Tỷ lệ tìm đúng section.
+- Độ chính xác của final context.
+- Tỷ lệ context sai domain.
+- Citation trỏ đúng section.
+- Độ chính xác của `answered`, `partial` và refusal.
+- Số critical fact không có nguồn hỗ trợ.
+- Phân vị latency của normal path và adaptive path.
 
-Initial merge gates:
+Quality gate ban đầu:
 
-- answerable retrieval Recall@5 is at least 90% and does not regress from
-  `4721cf0`;
-- citation-section correctness is at least 95% on the reviewed evaluation set;
-- no unsupported critical literal is accepted;
-- wrong-domain chunks are excluded from final context when coherent in-domain
-  evidence is available;
-- V2 does not increase normal-path P95 latency by more than 20% over the measured
-  baseline;
-- unit, integration, ingestion and frontend checks pass.
+- Recall@5 trên câu có đáp án đạt ít nhất 90% và không thấp hơn baseline
+  `4721cf0`.
+- Citation đúng section đạt ít nhất 95% trên tập đã review.
+- Không chấp nhận critical literal không có trong nguồn.
+- Loại chunk sai domain khỏi final context khi đã có evidence đúng và nhất quán.
+- P95 normal path không tăng quá 20% so với baseline đã đo.
+- Unit test, integration test, ingestion test và frontend check đều pass.
 
-If a numerical gate is not achievable with the current corpus/model, the result
-must be reported and the design revisited rather than weakening the gate silently.
+Nếu một quality gate không thể đạt với corpus hoặc model hiện tại, phải báo cáo
+kết quả và xem lại thiết kế. Không được tự ý hạ tiêu chuẩn để cho test pass.
 
-## Implementation slices
+## Các lát cắt triển khai
 
-1. Preserve and verify the stable baseline.
-2. Add tracked evaluation cases and baseline measurement.
-3. Retain raw retrieval provenance through fusion.
-4. Add candidate quality assessment and evidence selection.
-5. Change ambiguous/domain routing to retrieval-first.
-6. Add adaptive rewrite with the same Qwen.
-7. Separate failure statuses and harden deterministic validation.
-8. Run focused tests, full tests, evaluation and manual smoke checks.
-9. Perform code review and push only the reviewed feature branch.
+1. Bảo toàn và xác minh baseline ổn định.
+2. Thêm evaluation cases vào Git và đo baseline.
+3. Giữ raw retrieval provenance qua bước fusion.
+4. Thêm candidate quality assessment và evidence selector.
+5. Chuyển routing mơ hồ/domain sang retrieval-first.
+6. Thêm adaptive rewrite bằng chính Qwen.
+7. Phân biệt failure status và siết deterministic validation.
+8. Chạy test tập trung, full test, evaluation và manual smoke test.
+9. Code review và chỉ push feature branch đã được review.
 
-Each slice must start with a failing test or evaluation case and land as a
-coherent commit.
+Mỗi lát cắt phải bắt đầu bằng test hoặc evaluation case đang fail và được commit
+thành một thay đổi nhất quán.
 
-## Risks and controls
+## Rủi ro và biện pháp kiểm soát
 
-- **Adaptive path latency:** only trigger it for calibrated weak retrieval and
-  measure normal/adaptive paths separately.
-- **Rewrite hallucination:** strict schema, no factual output, retain original
-  query, at most two rewrites and safe fallback.
-- **Metadata false negatives:** inferred metadata is never a hard filter.
-- **Over-filtered context:** calibrate on holdout data and preserve strongest
-  original evidence.
-- **Qwen still infers unsupported semantics:** use clean context, strict prompt,
-  literal checks, citation review metrics and partial answers; do not claim full
-  semantic verification.
-- **Evaluation overfitting:** use category coverage plus a holdout set.
-- **Operational regression:** keep baseline and V2 branches independently
-  deployable until V2 passes all gates.
+- **Adaptive path tăng latency:** chỉ kích hoạt khi retrieval yếu theo ngưỡng đã
+  hiệu chỉnh và đo riêng normal/adaptive path.
+- **Rewrite tự tạo nội dung:** dùng schema nghiêm ngặt, không cho trả fact, giữ
+  query gốc, tối đa hai rewrite và có fallback.
+- **Metadata gây false negative:** metadata suy luận không bao giờ là hard filter.
+- **Context bị lọc quá mạnh:** hiệu chỉnh bằng holdout và luôn bảo toàn evidence
+  mạnh nhất từ query gốc.
+- **Qwen vẫn suy diễn semantic không có nguồn:** dùng context sạch, prompt nghiêm,
+  kiểm tra literal, đo citation và ưu tiên `partial`; không tuyên bố có semantic
+  verifier hoàn chỉnh.
+- **Overfit evaluation:** kiểm tra đủ nhóm hành vi và có holdout.
+- **Regression vận hành:** giữ baseline và V2 có thể deploy độc lập cho đến khi
+  V2 vượt qua toàn bộ quality gate.
 
-## Definition of done
+## Definition of Done
 
-- Stable baseline is recoverable and the experimental history remains preserved.
-- V2 is implemented on its feature branch without a dedicated reranker/planner
-  model.
-- Normal queries use one Qwen generation call.
-- Weak retrieval can use an adaptive rewrite with the same Qwen.
-- Final context is selected by evidence quality rather than fixed top-N slicing.
-- Failure statuses identify retrieval, dependency and generation failures
-  correctly.
-- Evaluation and full repository checks pass the documented gates.
-- Original reported regressions and unseen holdout categories are verified
-  end-to-end.
-- The reviewed feature branch is ready for merge without force-pushing `main`.
+- Baseline ổn định có thể phục hồi và lịch sử thử nghiệm vẫn được bảo toàn.
+- V2 được triển khai trên feature branch mà không cần planner/reranker model riêng.
+- Query thông thường chỉ dùng một lần Qwen generation.
+- Retrieval yếu có thể adaptive rewrite bằng cùng Qwen.
+- Final context được chọn theo chất lượng evidence thay vì cắt top-N cố định.
+- Failure status xác định đúng lỗi retrieval, dependency hoặc generation.
+- Evaluation và toàn bộ kiểm tra của repo vượt qua các quality gate đã ghi.
+- Regression đã báo và các nhóm holdout chưa từng dùng được kiểm chứng end-to-end.
+- Feature branch đã review, sẵn sàng merge mà không force-push `main`.
