@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -22,8 +23,14 @@ from app.rag.routing.models import (
 
 
 class FakeMultiStageRouter:
-    def __init__(self, decision: RoutingDecision) -> None:
+    def __init__(
+        self,
+        decision: RoutingDecision,
+        *,
+        delay_seconds: float = 0.0,
+    ) -> None:
         self.decision = decision
+        self.delay_seconds = delay_seconds
         self.calls: list[tuple[str, list[dict[str, str]], bool]] = []
 
     async def route(
@@ -34,6 +41,8 @@ class FakeMultiStageRouter:
         has_continuation: bool,
     ) -> RoutingDecision:
         self.calls.append((question, history, has_continuation))
+        if self.delay_seconds:
+            await asyncio.sleep(self.delay_seconds)
         return self.decision
 
 
@@ -75,9 +84,14 @@ class FakeLLM:
 
 
 class StreamingLLM(FailLLM):
+    def __init__(self) -> None:
+        self.stream_calls: list[tuple[str, str]] = []
+
     async def stream_generate(self, system_prompt: str, user_prompt: str):
-        del system_prompt, user_prompt
-        yield "Mình sẽ giải thích lại rõ hơn."
+        self.stream_calls.append((system_prompt, user_prompt))
+        yield "Mình sẽ giải thích "
+        yield "lại rõ hơn cho bạn."
+        yield " Nội dung tiếp theo."
 
 
 def _decision(
@@ -216,6 +230,64 @@ async def test_conversation_stream_routes_once_and_preserves_delta(tmp_path: Pat
             turn_kind=TurnKind.REPAIR,
         )
     )
+    llm = StreamingLLM()
+    pipeline = RAGPipeline(
+        Settings(documents_dir=tmp_path),
+        FailRetriever(),
+        llm,
+        route_orchestrator=router,
+    )
+
+    history = [
+        {
+            "role": "assistant",
+            "content": "Câu trả lời trước.",
+            "status": "generation_failed",
+            "capability": "rag",
+            "subject": "quy định nghỉ",
+            "turn_kind": "independent",
+        }
+    ]
+    events = [
+        event
+        async for event in pipeline.answer_stream(
+            "bạn nói gì thế",
+            history=history,
+        )
+    ]
+
+    assert len(router.calls) == 1
+    assert [event["event"] for event in events] == [
+        "progress",
+        "progress",
+        "delta",
+        "delta",
+        "final",
+    ]
+    deltas = [
+        event["data"]["text"]
+        for event in events
+        if event["event"] == "delta"
+    ]
+    assert events[-1]["data"]["answer"] == "".join(deltas)
+    assert events[-1]["data"]["status"] == "conversational"
+    assert events[-1]["data"]["trace"]["capability"] == "conversation"
+    assert "status=generation_failed" in llm.stream_calls[0][1]
+    assert "capability=rag" in llm.stream_calls[0][1]
+    assert "subject=quy định nghỉ" in llm.stream_calls[0][1]
+    assert "turn_kind=independent" in llm.stream_calls[0][1]
+
+
+@pytest.mark.asyncio
+async def test_conversation_stream_timing_includes_router(tmp_path: Path) -> None:
+    router = FakeMultiStageRouter(
+        _decision(
+            intent=RequestIntent.SOCIAL,
+            affinity=RouteAffinity.CONVERSATION,
+            capability=Capability.CONVERSATION,
+        ),
+        delay_seconds=0.02,
+    )
     pipeline = RAGPipeline(
         Settings(documents_dir=tmp_path),
         FailRetriever(),
@@ -225,16 +297,12 @@ async def test_conversation_stream_routes_once_and_preserves_delta(tmp_path: Pat
 
     events = [
         event
-        async for event in pipeline.answer_stream(
-            "bạn nói gì thế",
-            history=[{"role": "assistant", "content": "Câu trả lời trước."}],
-        )
+        async for event in pipeline.answer_stream("xin chào")
     ]
 
-    assert len(router.calls) == 1
-    assert [event["event"] for event in events] == ["progress", "progress", "delta", "final"]
-    assert events[-1]["data"]["status"] == "conversational"
-    assert events[-1]["data"]["trace"]["capability"] == "conversation"
+    final = events[-1]["data"]
+    assert final["timing_ms"]["router"] >= 15
+    assert final["timing_ms"]["total"] >= final["timing_ms"]["router"]
 
 
 @pytest.mark.asyncio

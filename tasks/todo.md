@@ -21,11 +21,11 @@
 
 ## Task 3: Pipeline integration
 
-- [ ] Write RED tests for structured history and router timing.
-- [ ] Replace duplicated pipeline streaming blocks with the executor.
-- [ ] Reuse one routing decision.
-- [ ] Run pipeline and retrieval regression tests.
-- [ ] Commit the increment.
+- [x] Write RED tests for structured history and router timing.
+- [x] Replace duplicated pipeline streaming blocks with the executor.
+- [x] Reuse one routing decision.
+- [x] Run pipeline and retrieval regression tests.
+- [x] Commit the increment.
 
 ## Task 4: API/frontend regression
 

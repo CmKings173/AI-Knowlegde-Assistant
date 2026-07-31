@@ -121,6 +121,10 @@ export type RouteTrace = {
   route_subject?: string | null;
   capability?: RouteCapability | null;
   capability_reason?: string | null;
+  language_guard_decision?: string | null;
+  language_retry_used?: boolean;
+  language_fallback_used?: boolean;
+  language_stream_interrupted?: boolean;
   candidate_count?: number | null;
   context_count?: number | null;
   best_score?: number | null;

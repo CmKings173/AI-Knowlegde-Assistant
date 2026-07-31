@@ -41,6 +41,7 @@ def test_guard_accepts_vietnamese_and_safe_technical_text(
             "the user in the required Vietnamese language.",
             "latin_non_vietnamese",
         ),
+        ("bad raw token", "latin_non_vietnamese"),
     ],
 )
 def test_guard_rejects_cjk_mixed_and_long_english(

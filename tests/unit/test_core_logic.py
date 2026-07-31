@@ -12,6 +12,7 @@ from app.ingestion.classifier import classify_knowledge_type
 from app.providers.embeddings import api_provider
 from app.providers.embeddings.api_provider import OllamaEmbeddingProvider, create_embedding_provider
 from app.rag.citation_builder import build_citations
+from app.rag.execution.conversation_stream import LANGUAGE_FALLBACK_VI
 from app.rag.fact_guard import extract_facts, validate_fact_consistency
 from app.rag.hybrid_search import reciprocal_rank_fusion
 from app.rag.intent_router import FollowUpSubtype, Intent, IntentRouter
@@ -895,11 +896,13 @@ async def test_pipeline_stream_buffers_and_blocks_cjk_tokens(tmp_path: Path) -> 
         event["data"]["text"] for event in events if event["event"] == "delta"
     )
     assert "\u6211" not in delta_text
-    assert events[-1]["data"]["answer"] == OUT_OF_SCOPE_RESPONSE
+    assert events[-1]["data"]["answer"] == LANGUAGE_FALLBACK_VI
+    assert events[-1]["data"]["trace"]["language_retry_used"]
+    assert events[-1]["data"]["trace"]["language_fallback_used"]
 
 
 @pytest.mark.asyncio
-async def test_pipeline_stream_does_not_emit_raw_conversational_llm_tokens(
+async def test_pipeline_guarded_stream_rejects_raw_english_tokens(
     tmp_path: Path,
 ) -> None:
     class FailRetriever:
@@ -929,12 +932,18 @@ async def test_pipeline_stream_does_not_emit_raw_conversational_llm_tokens(
 
     events = [event async for event in pipeline.answer_stream("hello")]
 
-    assert [event["event"] for event in events] == ["progress", "final"]
+    assert [event["event"] for event in events] == [
+        "progress",
+        "progress",
+        "delta",
+        "final",
+    ]
     assert events[-1]["data"]["status"] == "conversational"
     assert "bad raw token" not in events[-1]["data"]["answer"]
-    assert events[-1]["data"]["trace"]["branch"] == "conversation_llm"
-    assert llm.stream_calls == 0
-    assert llm.generate_calls == 1
+    assert events[-1]["data"]["answer"] == LANGUAGE_FALLBACK_VI
+    assert events[-1]["data"]["trace"]["branch"] == "conversation_stream"
+    assert llm.stream_calls == 2
+    assert llm.generate_calls == 0
 
 
 @pytest.mark.asyncio

@@ -86,12 +86,25 @@ class VietnameseLanguageGuard:
             )
 
         letters = [char for char in value if char.isalpha()]
-        if len(letters) < _MIN_LANGUAGE_SAMPLE_LETTERS:
-            return LanguageDecision(True, "short_or_technical", "sample_too_short")
-
         words = {word.casefold() for word in _WORD_PATTERN.findall(value)}
         vietnamese_word_count = len(words & _VIETNAMESE_WORDS)
         vietnamese_mark_count = sum(_has_vietnamese_mark(char) for char in letters)
+        if len(letters) < _MIN_LANGUAGE_SAMPLE_LETTERS:
+            if (
+                vietnamese_word_count >= 1
+                and vietnamese_mark_count >= 1
+            ) or _is_short_acronym(value):
+                return LanguageDecision(
+                    True,
+                    "short_or_technical",
+                    "safe_short_output",
+                )
+            return LanguageDecision(
+                False,
+                "latin_non_vietnamese",
+                "short_output_missing_vietnamese_signals",
+            )
+
         if vietnamese_word_count >= 1 and vietnamese_mark_count >= 2:
             return LanguageDecision(True, "vi", "vietnamese_signals")
 
@@ -111,3 +124,8 @@ def _has_vietnamese_mark(char: str) -> bool:
         return True
     decomposed = unicodedata.normalize("NFD", char)
     return any(unicodedata.category(item) == "Mn" for item in decomposed[1:])
+
+
+def _is_short_acronym(value: str) -> bool:
+    tokens = _WORD_PATTERN.findall(value)
+    return len(tokens) == 1 and 1 <= len(tokens[0]) <= 8 and tokens[0].isupper()

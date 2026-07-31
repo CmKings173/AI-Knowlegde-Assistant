@@ -20,6 +20,12 @@ from app.rag.evidence_selector import (
     EvidenceSelectionConfig,
     select_evidence,
 )
+from app.rag.execution.conversation_stream import (
+    ConversationComplete,
+    ConversationDelta,
+    ConversationStreamExecutor,
+)
+from app.rag.guards.language_guard import VietnameseLanguageGuard
 from app.rag.intent_router import FollowUpSubtype, Intent, IntentDecision, IntentRouter
 from app.rag.prompts import (
     CONVERSATIONAL_STREAM_SYSTEM_PROMPT,
@@ -31,6 +37,7 @@ from app.rag.prompts import (
     build_broad_user_prompt,
     build_conversation_prompt,
     build_conversation_stream_prompt,
+    build_conversation_stream_retry_prompt,
     build_query_rewrite_prompt,
     build_retry_prompt,
     build_router_prompt,
@@ -167,6 +174,10 @@ class RAGPipeline:
         self.retriever = retriever
         self.llm_provider = llm_provider
         self.route_orchestrator = route_orchestrator
+        self.conversation_stream_executor = ConversationStreamExecutor(
+            llm_provider,
+            VietnameseLanguageGuard(),
+        )
         self.evidence_config = EvidenceSelectionConfig(
             min_dense_score=settings.evidence_min_dense_score,
             min_bm25_score=settings.evidence_min_bm25_score,
@@ -185,10 +196,12 @@ class RAGPipeline:
         history: list[dict[str, str]] | None = None,
         continuation: dict[str, object] | None = None,
         _routing_decision: RoutingDecision | None = None,
+        _routing_ms: int = 0,
+        _request_started: float | None = None,
     ) -> dict[str, object]:
-        total_start = time.perf_counter()
+        total_start = _request_started or time.perf_counter()
         timing: dict[str, int] = {
-            "router": 0,
+            "router": _routing_ms,
             "rewrite": 0,
             "retrieval": 0,
             "rerank": 0,
@@ -635,11 +648,18 @@ class RAGPipeline:
         history: list[dict[str, str]] | None = None,
         continuation: dict[str, object] | None = None,
     ) -> AsyncIterator[dict[str, object]]:
+        request_started = time.perf_counter()
         history = history or []
         normalized = self.normalizer.normalize(question)
         yield _stream_event("progress", {"stage": "routing", "message": "Đang phân loại câu hỏi."})
         if _is_category_only_after_clarify(normalized, history):
-            response = await self.answer(question, filters, history, continuation)
+            response = await self.answer(
+                question,
+                filters,
+                history,
+                continuation,
+                _request_started=request_started,
+            )
             yield _stream_event("final", response)
             return
 
@@ -648,62 +668,37 @@ class RAGPipeline:
                 "progress",
                 {"stage": "retrieval", "message": "Đang lấy phần nội dung tiếp theo."},
             )
-            response = await self.answer(question, filters, history, continuation)
+            response = await self.answer(
+                question,
+                filters,
+                history,
+                continuation,
+                _request_started=request_started,
+            )
             yield _stream_event("final", response)
             return
 
         if self.route_orchestrator is not None:
+            router_started = time.perf_counter()
             routing = await self.route_orchestrator.route(
                 normalized,
                 history,
                 has_continuation=bool(continuation),
             )
+            router_ms = int((time.perf_counter() - router_started) * 1000)
             intent = _intent_from_multistage(routing)
             if _is_streamable_conversation_intent(intent):
-                timing: dict[str, int] = {
-                    "router": 0,
-                    "rewrite": 0,
-                    "retrieval": 0,
-                    "rerank": 0,
-                    "llm": 0,
-                    "total": 0,
-                }
-                total_start = time.perf_counter()
-                trace = {
-                    **_routing_trace(routing),
-                    "retrieval_first": False,
-                    "branch": "conversation_stream",
-                }
-                answer_parts: list[str] = []
-                yield _stream_event(
-                    "progress",
-                    {"stage": "generation", "message": "Đang tạo câu trả lời."},
-                )
-                with measure_ms(timing, "llm"):
-                    user_prompt = build_conversation_stream_prompt(normalized, history)
-                    async for token in self.llm_provider.stream_generate(
-                        CONVERSATIONAL_STREAM_SYSTEM_PROMPT,
-                        user_prompt,
-                    ):
-                        answer_parts.append(token)
-                answer = "".join(answer_parts).strip() or CONVERSATIONAL_RESPONSE
-                if contains_disallowed_cjk(answer):
-                    answer = OUT_OF_SCOPE_RESPONSE
-                yield _stream_event("delta", {"text": answer})
-                timing["total"] = int((time.perf_counter() - total_start) * 1000)
-                yield _stream_event(
-                    "final",
-                    _response(
-                        status="conversational",
-                        answer=answer,
-                        citations=[],
-                        candidate_count=0,
-                        context_count=0,
-                        reranker_used=False,
-                        timing=timing,
-                        trace=trace,
-                    ),
-                )
+                async for event in self._stream_conversation_events(
+                    normalized,
+                    history,
+                    router_ms=router_ms,
+                    request_started=request_started,
+                    trace={
+                        **_routing_trace(routing),
+                        "retrieval_first": False,
+                    },
+                ):
+                    yield event
                 return
             progress = _progress_for_non_streamed_intent(intent)
             if progress:
@@ -714,11 +709,15 @@ class RAGPipeline:
                 history,
                 continuation,
                 _routing_decision=routing,
+                _routing_ms=router_ms,
+                _request_started=request_started,
             )
             yield _stream_event("final", response)
             return
 
+        router_started = time.perf_counter()
         intent = self.intent_router.classify(normalized, has_history=bool(history))
+        router_ms = int((time.perf_counter() - router_started) * 1000)
         if filters_select_no_documents(filters) and intent.intent in {
             Intent.BROAD_SECTION_QUERY,
             Intent.KNOWLEDGE_QUERY,
@@ -727,53 +726,80 @@ class RAGPipeline:
             yield _stream_event("final", response)
             return
         if _is_streamable_conversation_intent(intent):
-            timing: dict[str, int] = {
-                "router": 0,
-                "rewrite": 0,
-                "retrieval": 0,
-                "rerank": 0,
-                "llm": 0,
-                "total": 0,
-            }
-            total_start = time.perf_counter()
-            trace = {**_intent_trace(intent), "branch": "conversation_stream"}
-            answer_parts: list[str] = []
-            yield _stream_event(
-                "progress",
-                {"stage": "generation", "message": "Đang tạo câu trả lời."},
-            )
-            with measure_ms(timing, "llm"):
-                user_prompt = build_conversation_stream_prompt(normalized, history)
-                async for token in self.llm_provider.stream_generate(
-                    CONVERSATIONAL_STREAM_SYSTEM_PROMPT,
-                    user_prompt,
-                ):
-                    answer_parts.append(token)
-            answer = "".join(answer_parts).strip() or CONVERSATIONAL_RESPONSE
-            if contains_disallowed_cjk(answer):
-                answer = OUT_OF_SCOPE_RESPONSE
-            yield _stream_event("delta", {"text": answer})
-            timing["total"] = int((time.perf_counter() - total_start) * 1000)
-            yield _stream_event(
-                "final",
-                _response(
-                    status="conversational",
-                    answer=answer,
-                    citations=[],
-                    candidate_count=0,
-                    context_count=0,
-                    reranker_used=False,
-                    timing=timing,
-                    trace=trace,
-                ),
-            )
+            async for event in self._stream_conversation_events(
+                normalized,
+                history,
+                router_ms=router_ms,
+                request_started=request_started,
+                trace=_intent_trace(intent),
+            ):
+                yield event
             return
 
         progress = _progress_for_non_streamed_intent(intent)
         if progress:
             yield _stream_event("progress", progress)
-        response = await self.answer(question, filters, history, continuation)
+        response = await self.answer(
+            question,
+            filters,
+            history,
+            continuation,
+            _request_started=request_started,
+        )
         yield _stream_event("final", response)
+
+    async def _stream_conversation_events(
+        self,
+        question: str,
+        history: list[dict[str, str]],
+        *,
+        router_ms: int,
+        request_started: float,
+        trace: dict[str, object],
+    ) -> AsyncIterator[dict[str, object]]:
+        yield _stream_event(
+            "progress",
+            {"stage": "generation", "message": "Đang tạo câu trả lời."},
+        )
+        user_prompt = build_conversation_stream_prompt(question, history)
+        retry_prompt = build_conversation_stream_retry_prompt(question, history)
+        async for item in self.conversation_stream_executor.stream(
+            CONVERSATIONAL_STREAM_SYSTEM_PROMPT,
+            user_prompt,
+            retry_prompt,
+        ):
+            if isinstance(item, ConversationDelta):
+                yield _stream_event("delta", {"text": item.text})
+                continue
+            if isinstance(item, ConversationComplete):
+                timing = {
+                    "router": router_ms,
+                    "rewrite": 0,
+                    "retrieval": 0,
+                    "rerank": 0,
+                    "llm": item.llm_ms,
+                    "total": int((time.perf_counter() - request_started) * 1000),
+                }
+                yield _stream_event(
+                    "final",
+                    _response(
+                        status="conversational",
+                        answer=item.answer,
+                        citations=[],
+                        candidate_count=0,
+                        context_count=0,
+                        reranker_used=False,
+                        timing=timing,
+                        trace={
+                            **trace,
+                            "branch": "conversation_stream",
+                            "language_guard_decision": item.language_decision,
+                            "language_retry_used": item.retry_used,
+                            "language_fallback_used": item.fallback_used,
+                            "language_stream_interrupted": item.interrupted,
+                        },
+                    ),
+                )
 
     async def _answer_conversation(
         self,
@@ -1454,11 +1480,15 @@ def _is_personal_leisure_query(normalized: str) -> bool:
 
 
 def _is_streamable_conversation_intent(intent: IntentDecision) -> bool:
-    return intent.intent == Intent.FOLLOW_UP and intent.subtype in {
-        FollowUpSubtype.SOURCE_CHALLENGE,
-        FollowUpSubtype.CONTINUATION,
-        FollowUpSubtype.CASUAL_FOLLOW_UP,
-    }
+    return intent.intent == Intent.CONVERSATIONAL_LLM or (
+        intent.intent == Intent.FOLLOW_UP
+        and intent.subtype
+        in {
+            FollowUpSubtype.SOURCE_CHALLENGE,
+            FollowUpSubtype.CONTINUATION,
+            FollowUpSubtype.CASUAL_FOLLOW_UP,
+        }
+    )
 
 
 def _should_retrieve_before_routing(intent: IntentDecision) -> bool:
@@ -1624,6 +1654,10 @@ def _clean_trace(trace: dict[str, object]) -> dict[str, object]:
         "route_subject",
         "capability",
         "capability_reason",
+        "language_guard_decision",
+        "language_retry_used",
+        "language_fallback_used",
+        "language_stream_interrupted",
         "candidate_count",
         "context_count",
         "best_score",

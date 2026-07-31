@@ -137,6 +137,10 @@ class RouteTrace(BaseModel):
     route_subject: str | None = None
     capability: str | None = None
     capability_reason: str | None = None
+    language_guard_decision: str | None = None
+    language_retry_used: bool = False
+    language_fallback_used: bool = False
+    language_stream_interrupted: bool = False
     candidate_count: int | None = None
     context_count: int | None = None
     best_score: float | None = None

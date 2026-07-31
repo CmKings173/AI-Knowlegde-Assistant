@@ -300,13 +300,28 @@ Hãy trả lời trực tiếp bằng tiếng Việt có dấu, tự nhiên."""
 
 def build_conversation_stream_prompt(question: str, history: list[dict[str, str]]) -> str:
     return f"""LICH SU HOI THOAI GAN NHAT:
-{_format_history(history)}
+{_format_history_with_state(history)}
 
 CAU HOI HIEN TAI:
 {question}
 
 Hay tra loi truc tiep bang tieng Viet co dau, tu nhien.
 Chi tra loi noi dung can noi voi nguoi dung; khong nhac lai huong dan noi bo."""
+
+
+def build_conversation_stream_retry_prompt(
+    question: str,
+    history: list[dict[str, str]],
+) -> str:
+    return f"""LICH SU HOI THOAI GAN NHAT:
+{_format_history_with_state(history)}
+
+CAU HOI HIEN TAI:
+{question}
+
+Lan sinh truoc vi pham LANGUAGE_VI_ONLY.
+Hay tao lai cau tra loi tu dau, khong sao chep output truoc.
+Chi tra loi bang tieng Viet co dau, khong dung tieng Trung hay ngon ngu khac."""
 
 
 def build_router_prompt(question: str, history: list[dict[str, str]]) -> str:
