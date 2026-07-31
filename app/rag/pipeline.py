@@ -13,8 +13,13 @@ from app.config import Settings
 from app.documents.images import load_image_lookup
 from app.domain.models import Chunk, Citation, RetrievalFilters, filters_select_no_documents
 from app.providers.llm.base import LLMProvider
+from app.rag.adaptive_retrieval import AdaptiveRetriever
 from app.rag.citation_builder import build_citations
 from app.rag.context_builder import build_context
+from app.rag.evidence_selector import (
+    EvidenceSelectionConfig,
+    select_evidence,
+)
 from app.rag.fact_guard import (
     FactValidationResult,
     describe_fact_guard_retry_error,
@@ -155,6 +160,16 @@ class RAGPipeline:
         self.intent_router = IntentRouter()
         self.retriever = retriever
         self.llm_provider = llm_provider
+        self.evidence_config = EvidenceSelectionConfig(
+            min_dense_score=settings.evidence_min_dense_score,
+            min_bm25_score=settings.evidence_min_bm25_score,
+            coherent_domain_min_chunks=settings.evidence_coherent_domain_min_chunks,
+        )
+        self.adaptive_retriever = AdaptiveRetriever(
+            retriever,
+            llm_provider,
+            self.evidence_config,
+        )
 
     async def answer(
         self,
@@ -240,10 +255,12 @@ class RAGPipeline:
                 },
             )
         intent = self.intent_router.classify(normalized, has_history=bool(history))
-        if intent.intent == Intent.AMBIGUOUS:
+        retrieval_first = _should_retrieve_before_routing(intent)
+        if intent.intent == Intent.AMBIGUOUS and not retrieval_first:
             with measure_ms(timing, "router"):
                 intent = await self._route_with_llm(normalized, history, intent)
         trace.update(_intent_trace(intent))
+        trace["retrieval_first"] = retrieval_first
         _trace(
             "rag_intent",
             intent=intent.intent,
@@ -255,6 +272,14 @@ class RAGPipeline:
             has_continuation=bool(continuation),
             question_chars=len(question),
         )
+        if retrieval_first:
+            intent = IntentDecision(
+                Intent.KNOWLEDGE_QUERY,
+                intent.confidence,
+                f"retrieval_first:{intent.reason}",
+                intent.subtype,
+                intent.llm_router_used,
+            )
         if intent.intent == Intent.CONVERSATIONAL:
             timing["total"] = int((time.perf_counter() - total_start) * 1000)
             _trace(
@@ -426,28 +451,59 @@ class RAGPipeline:
                     trace={**trace, "branch": "broad_section"},
                 )
         with measure_ms(timing, "retrieval"):
-            retrieval = await self.retriever.retrieve(normalized, filters)
+            adaptive = await self.adaptive_retriever.retrieve(
+                normalized,
+                filters,
+                history,
+            )
+        retrieval = adaptive.retrieval
         best_score = retrieval.chunks[0].score if retrieval.chunks else 0.0
+        selection = select_evidence(
+            retrieval.chunks,
+            self.settings.final_context_top_n,
+            self.evidence_config,
+        )
+        selected_chunk_ids = [chunk.chunk_id for chunk in selection.selected]
+        rejected_chunks = {
+            item.chunk.chunk_id: item.reason for item in selection.rejected
+        }
+        trace.update(
+            {
+                "adaptive_rewrite_used": adaptive.rewrite_used,
+                "adaptive_rewrite_error": adaptive.rewrite_error,
+                "retrieval_queries": list(adaptive.queries),
+                "candidate_quality": selection.quality.reason,
+                "selected_chunk_ids": selected_chunk_ids,
+                "rejected_chunks": rejected_chunks,
+            }
+        )
         _trace(
             "rag_retrieval",
             branch="knowledge",
             candidate_count=retrieval.candidate_count,
             best_score=round(best_score, 6),
             retrieval_ms=timing["retrieval"],
+            adaptive_rewrite_used=adaptive.rewrite_used,
+            adaptive_rewrite_error=adaptive.rewrite_error,
+            retrieval_queries=list(adaptive.queries),
+            candidate_quality=selection.quality.reason,
         )
-        if should_refuse(retrieval.candidate_count, best_score, self.settings.min_retrieval_score):
+        if not selection.selected:
             timing["total"] = int((time.perf_counter() - total_start) * 1000)
+            status = "clarify" if retrieval_first else FALLBACK_STATUS
+            answer = CLARIFY_RESPONSE if retrieval_first else REFUSAL
+            branch = "retrieval_first_clarify" if retrieval_first else "knowledge_refusal"
             _trace(
                 "rag_response",
-                branch="knowledge_refusal",
-                status=FALLBACK_STATUS,
+                branch=branch,
+                status=status,
                 candidate_count=retrieval.candidate_count,
                 best_score=round(best_score, 6),
                 total_ms=timing["total"],
             )
             return _response(
-                status=FALLBACK_STATUS,
-                answer=REFUSAL,
+                status=status,
+                answer=answer,
                 citations=[],
                 candidate_count=retrieval.candidate_count,
                 context_count=0,
@@ -455,7 +511,7 @@ class RAGPipeline:
                 timing=timing,
                 trace={
                     **trace,
-                    "branch": "knowledge_refusal",
+                    "branch": branch,
                     "candidate_count": retrieval.candidate_count,
                     "context_count": 0,
                     "best_score": round(best_score, 6),
@@ -463,7 +519,7 @@ class RAGPipeline:
             )
 
         context, selected = build_context(
-            retrieval.chunks[: self.settings.final_context_top_n],
+            selection.selected,
             self.settings.max_context_tokens,
         )
         image_lookup = load_image_lookup(
@@ -565,6 +621,12 @@ class RAGPipeline:
                 "context_count": len(selected),
                 "best_score": round(best_score, 6),
                 "parse_error": parsed.error,
+                "adaptive_rewrite_used": adaptive.rewrite_used,
+                "adaptive_rewrite_error": adaptive.rewrite_error,
+                "retrieval_queries": list(adaptive.queries),
+                "candidate_quality": selection.quality.reason,
+                "selected_chunk_ids": selected_chunk_ids,
+                "rejected_chunks": rejected_chunks,
                 "fact_guard_error": (
                     fact_result.reason if fact_result and not fact_result.passed else None
                 ),
@@ -1346,6 +1408,16 @@ def _is_streamable_conversation_intent(intent: IntentDecision) -> bool:
     }
 
 
+def _should_retrieve_before_routing(intent: IntentDecision) -> bool:
+    if intent.intent == Intent.AMBIGUOUS:
+        return True
+    if intent.intent == Intent.OUT_OF_SCOPE:
+        return intent.reason == "non_domain_statement" and intent.confidence <= 0.6
+    if intent.intent == Intent.CONVERSATIONAL_LLM:
+        return intent.reason == "follow_up_term_without_history"
+    return False
+
+
 def _progress_for_non_streamed_intent(intent: IntentDecision) -> dict[str, str] | None:
     if intent.intent in {Intent.KNOWLEDGE_QUERY, Intent.BROAD_SECTION_QUERY}:
         return {
@@ -1439,6 +1511,13 @@ def _clean_trace(trace: dict[str, object]) -> dict[str, object]:
         "fact_guard_error",
         "rewrite_used",
         "llm_router_used",
+        "retrieval_first",
+        "adaptive_rewrite_used",
+        "adaptive_rewrite_error",
+        "retrieval_queries",
+        "candidate_quality",
+        "selected_chunk_ids",
+        "rejected_chunks",
     }
     cleaned: dict[str, object] = {}
     for key in allowed:
@@ -1447,4 +1526,12 @@ def _clean_trace(trace: dict[str, object]) -> dict[str, object]:
             cleaned[key] = value.value
         elif isinstance(value, int | float | str | bool) or value is None:
             cleaned[key] = value
+        elif key in {"retrieval_queries", "selected_chunk_ids"} and isinstance(value, list):
+            cleaned[key] = [item for item in value if isinstance(item, str)]
+        elif key == "rejected_chunks" and isinstance(value, dict):
+            cleaned[key] = {
+                str(chunk_id): str(reason)
+                for chunk_id, reason in value.items()
+                if isinstance(chunk_id, str) and isinstance(reason, str)
+            }
     return cleaned

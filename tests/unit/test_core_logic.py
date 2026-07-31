@@ -1012,10 +1012,16 @@ async def test_pipeline_bypasses_retrieval_for_out_of_scope_message(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_pipeline_clarifies_vague_ambiguous_question(tmp_path: Path) -> None:
-    class FailRetriever:
+async def test_pipeline_retrieves_before_clarifying_vague_ambiguous_question(
+    tmp_path: Path,
+) -> None:
+    class FakeRetriever:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
         async def retrieve(self, query, filters=None):
-            raise AssertionError("ambiguous vague question should not call retrieval")
+            self.queries.append(query)
+            return RetrievalResult(chunks=[], candidate_count=0, reranker_used=False)
 
     class FakeLLM:
         async def generate(self, system_prompt: str, user_prompt: str) -> str:
@@ -1024,15 +1030,17 @@ async def test_pipeline_clarifies_vague_ambiguous_question(tmp_path: Path) -> No
                 '"confidence": 0.78, "reason": "missing target system"}'
             )
 
-    pipeline = RAGPipeline(Settings(documents_dir=tmp_path), FailRetriever(), FakeLLM())
+    retriever = FakeRetriever()
+    pipeline = RAGPipeline(Settings(documents_dir=tmp_path), retriever, FakeLLM())
 
     result = await pipeline.answer("sao toi khong vao duoc")
 
     assert result["status"] == "clarify"
+    assert retriever.queries == ["sao toi khong vao duoc"]
     assert result["retrieval"]["candidate_count"] == 0
-    assert result["trace"]["intent"] == "clarify"
-    assert result["trace"]["branch"] == "clarify"
-    assert result["trace"]["llm_router_used"] is True
+    assert result["trace"]["intent"] == "ambiguous"
+    assert result["trace"]["branch"] == "retrieval_first_clarify"
+    assert result["trace"]["llm_router_used"] is False
 
 
 @pytest.mark.asyncio

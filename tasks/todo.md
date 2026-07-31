@@ -42,11 +42,11 @@
 
 ## Task 5: Pipeline retrieval-first
 
-- [ ] Viết regression test cho câu chưa có keyword domain.
-- [ ] Viết test document scope, history và broad-section.
-- [ ] Tích hợp quality, adaptive retrieval và selector.
-- [ ] Thêm trace selected/rejected reason.
-- [ ] Chạy focused tests và commit.
+- [x] Viết regression test cho câu chưa có keyword domain.
+- [x] Viết test document scope, history và broad-section.
+- [x] Tích hợp quality, adaptive retrieval và selector.
+- [x] Thêm trace selected/rejected reason.
+- [x] Chạy focused tests và commit.
 
 ## Task 6: Status và validation
 
