@@ -18,11 +18,11 @@
 
 ## Task 2: Retrieval provenance
 
-- [ ] Viết test fail cho dense/BM25/RRF provenance.
-- [ ] Giữ score và rank gốc qua fusion.
-- [ ] Giữ tương thích với pipeline hiện tại.
-- [ ] Chạy focused và regression tests.
-- [ ] Commit lát cắt.
+- [x] Viết test fail cho dense/BM25/RRF provenance.
+- [x] Giữ score và rank gốc qua fusion.
+- [x] Giữ tương thích với pipeline hiện tại.
+- [x] Chạy focused và regression tests.
+- [x] Commit lát cắt.
 
 ## Task 3: Evidence selector
 

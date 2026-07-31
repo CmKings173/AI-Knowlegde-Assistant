@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.config import Settings
-from app.domain.models import Chunk, RetrievalFilters, RetrievalResult, filters_select_no_documents
+from app.domain.models import (
+    Chunk,
+    RetrievalFilters,
+    RetrievalResult,
+    RetrievalSignals,
+    filters_select_no_documents,
+)
 from app.providers.embeddings.base import EmbeddingProvider
 from app.providers.vector_store.base import VectorStore
 from app.rag.hybrid_search import reciprocal_rank_fusion
@@ -49,7 +57,17 @@ class Retriever:
         query_vector = (await self.embedding_provider.embed_texts([query]))[0]
         dense = await self.vector_store.search(query_vector, self.settings.dense_top_k, filters)
         lexical = self.lexical_index.search(query, self.settings.lexical_top_k, filters)
-        by_id: dict[str, Chunk] = {chunk.chunk_id: chunk for chunk in [*dense, *lexical]}
+        dense_by_id = {
+            chunk.chunk_id: (rank, chunk.score)
+            for rank, chunk in enumerate(dense, start=1)
+        }
+        lexical_by_id = {
+            chunk.chunk_id: (rank, chunk.score)
+            for rank, chunk in enumerate(lexical, start=1)
+        }
+        by_id: dict[str, Chunk] = {
+            chunk.chunk_id: chunk for chunk in [*lexical, *dense]
+        }
         fused = reciprocal_rank_fusion(
             [
                 [(chunk.chunk_id, chunk.score) for chunk in dense],
@@ -60,6 +78,20 @@ class Retriever:
         ranked: list[Chunk] = []
         for chunk_id, score in fused:
             chunk = by_id[chunk_id]
-            chunk.score = score
-            ranked.append(chunk)
+            dense_signal = dense_by_id.get(chunk_id)
+            lexical_signal = lexical_by_id.get(chunk_id)
+            ranked.append(
+                replace(
+                    chunk,
+                    score=score,
+                    retrieval=RetrievalSignals(
+                        dense_score=dense_signal[1] if dense_signal else None,
+                        dense_rank=dense_signal[0] if dense_signal else None,
+                        bm25_score=lexical_signal[1] if lexical_signal else None,
+                        bm25_rank=lexical_signal[0] if lexical_signal else None,
+                        rrf_score=score,
+                        matched_queries=("original",),
+                    ),
+                )
+            )
         return RetrievalResult(chunks=ranked, candidate_count=len(ranked), reranker_used=False)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from rank_bm25 import BM25Okapi
 
 from app.domain.models import Chunk, RetrievalFilters, chunk_matches_filters
@@ -51,9 +53,7 @@ class LexicalIndex:
             score_value = _combined_score(float(score), tokenized_chunks[index], query_terms)
             if score_value <= 0:
                 continue
-            chunk = chunks[index]
-            chunk.score = score_value
-            results.append(chunk)
+            results.append(replace(chunks[index], score=score_value))
         return results
 
 

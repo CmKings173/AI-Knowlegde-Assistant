@@ -36,6 +36,16 @@ class ImageAsset:
 
 
 @dataclass
+class RetrievalSignals:
+    dense_score: float | None = None
+    dense_rank: int | None = None
+    bm25_score: float | None = None
+    bm25_rank: int | None = None
+    rrf_score: float = 0.0
+    matched_queries: tuple[str, ...] = ()
+
+
+@dataclass
 class Chunk:
     chunk_id: str
     parent_id: str | None
@@ -54,6 +64,7 @@ class Chunk:
     language: str = "vi"
     is_parent: bool = False
     score: float = 0.0
+    retrieval: RetrievalSignals = field(default_factory=RetrievalSignals)
 
     def payload(self) -> dict[str, Any]:
         return {
