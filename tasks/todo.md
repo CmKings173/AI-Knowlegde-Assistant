@@ -2,10 +2,10 @@
 
 ## Task 1: Language guard
 
-- [ ] Write RED tests for Vietnamese, CJK, English, mixed text, and technical literals.
-- [ ] Implement `VietnameseLanguageGuard`.
-- [ ] Run focused tests and Ruff.
-- [ ] Commit the increment.
+- [x] Write RED tests for Vietnamese, CJK, English, mixed text, and technical literals.
+- [x] Implement `VietnameseLanguageGuard`.
+- [x] Run focused tests and Ruff.
+- [x] Commit the increment.
 
 ## Task 2: Conversation stream executor
 
