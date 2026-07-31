@@ -5,7 +5,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -122,7 +122,7 @@ def _parse_args() -> argparse.Namespace:
 def _filters_for_case(case: EvaluationCase) -> RetrievalFilters:
     return RetrievalFilters(
         document_ids=case.document_ids or [],
-        document_scope=case.document_scope,  # type: ignore[arg-type]
+        document_scope=cast(Literal["all", "selected"], case.document_scope),
     )
 
 

@@ -214,7 +214,7 @@
       "outcome": "out_of_scope",
       "expected_capability": "unsupported",
       "expected_outcome": "out_of_scope",
-      "forbidden_fact_groups": [["SOURCE_1"], ["github", "tài liệu nội bộ"]],
+      "forbidden_fact_groups": [["SOURCE_1"], ["github"]],
       "citation_required": false
     }
   },
@@ -237,7 +237,7 @@
       "outcome": "unanswerable",
       "expected_capability": "rag",
       "expected_outcome": "insufficient_context",
-      "forbidden_fact_groups": [["phòng ban"], ["có 3"], ["có 4"], ["có 5"]],
+      "forbidden_fact_groups": [["có 3"], ["có 4"], ["có 5"], ["ba phòng"], ["bốn phòng"]],
       "citation_required": false
     }
   },

@@ -53,12 +53,12 @@
 
 ## Task 6: Documentation and final review
 
-- [ ] Update `app/rag/PROGRESS.md`.
-- [ ] Update root `PROGRESS.md`.
-- [ ] Run full backend unit suite.
-- [ ] Run Ruff.
-- [ ] Run harness check.
-- [ ] Run `git diff --check`.
-- [ ] Perform final code review.
-- [ ] Resolve all Critical and Required findings.
+- [x] Update `app/rag/PROGRESS.md`.
+- [x] Update root `PROGRESS.md`.
+- [x] Run full backend unit suite.
+- [x] Run Ruff.
+- [x] Run harness check.
+- [x] Run `git diff --check`.
+- [x] Perform final code review.
+- [x] Resolve all Critical and Required findings.
 - [ ] Confirm clean working tree after commits.

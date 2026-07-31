@@ -198,7 +198,7 @@ def test_evaluate_response_reports_forbidden_facts_and_missing_citation() -> Non
 
     result = evaluate_response(
         case,
-        answer="Cau hoi nay lien quan den hang hoa tai san.",
+        answer="Cau hoi nay lien quan den hang hoa.",
         status="out_of_scope",
         citations=[],
     )

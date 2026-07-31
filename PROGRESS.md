@@ -33,11 +33,15 @@ Last updated: 2026-07-31
 - Conversation responses now use guarded Vietnamese streaming with prefix validation,
   one clean retry, and a fixed Vietnamese fallback.
 - RAG responses remain fully buffered for structured-output and citation validation.
+- RAG end-to-end evaluation harness is implemented at deterministic-core level:
+  dataset schema, response scoring, first-failure-stage classification, and live
+  `scripts/evaluate_rag.py` runner.
 
 ## Verified recently
 
 - `uv run ruff check . --no-cache`
 - `uv run pytest tests/unit`
+- `uv run python -m pytest tests/unit/test_rag_e2e_evaluation.py tests/unit/test_retrieval_evaluation.py -q`
 - `npm run build` from `frontend/`
 - Dynamic ingestion smoke test passed with fake vector store for a copied seed DOCX:
   parse, image extraction, chunks, manifest, idempotent re-add.
@@ -49,8 +53,8 @@ Last updated: 2026-07-31
 - Reranker model is configured but not implemented; retrieval currently uses dense
   search + BM25 + RRF top-k.
 - No authentication, authorization, rate limit, Redis cache, or production queue yet.
-- Frontend currently uses request/response chat over the existing REST API; token
-  streaming is not implemented yet.
+- Live e2e RAG evaluation still needs to be run on GX10 or another environment
+  with Qdrant, embeddings, and Ollama available.
 
 ## Open engineering follow-ups
 

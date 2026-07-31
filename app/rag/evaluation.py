@@ -516,7 +516,7 @@ def _forbidden_fact_violations(
         return []
     violations: list[str] = []
     for index, group in enumerate(case.forbidden_fact_groups):
-        if all(_normalize_text(variant) in normalized_answer for variant in group):
+        if any(_normalize_text(variant) in normalized_answer for variant in group):
             violations.append(f"forbidden_fact_group:{index}")
     return violations
 
