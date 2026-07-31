@@ -57,12 +57,12 @@
 
 ## Task 7: Kiểm chứng và review
 
-- [ ] Chạy Ruff toàn repo.
-- [ ] Chạy toàn bộ unit tests.
-- [ ] Chạy harness check.
-- [ ] Build frontend.
-- [ ] Chạy evaluation với service thật nếu sẵn sàng.
-- [ ] Cập nhật `ARCHITECTURE.md` và `PROGRESS.md`.
-- [ ] Review correctness, readability, architecture, security và performance.
-- [ ] Xử lý toàn bộ finding Critical/Required.
-- [ ] Xác nhận branch sạch và chuẩn bị push.
+- [x] Chạy Ruff toàn repo.
+- [x] Chạy toàn bộ unit tests.
+- [x] Chạy harness check.
+- [x] Build frontend.
+- [x] Chạy evaluation với service thật nếu sẵn sàng.
+- [x] Cập nhật `ARCHITECTURE.md` và `PROGRESS.md`.
+- [x] Review correctness, readability, architecture, security và performance.
+- [x] Xử lý toàn bộ finding Critical/Required.
+- [x] Xác nhận branch sạch và chuẩn bị push.

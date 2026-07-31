@@ -68,6 +68,16 @@ def test_critical_literal_validator_rejects_unsupported_ip_and_port() -> None:
     assert result.unsupported == ("ip:10.10.12.99", "port:8443")
 
 
+def test_port_literal_does_not_capture_first_octet_of_ip_address() -> None:
+    result = validate_critical_literals(
+        "Kết nối đến cổng 10.10.12.10. [SOURCE_1]",
+        "Địa chỉ được cấp là 10.10.12.10.",
+    )
+
+    assert result.passed is True
+    assert result.unsupported == ()
+
+
 def test_route_trace_contract_keeps_retrieval_v2_diagnostics() -> None:
     trace = RouteTrace.model_validate(
         {

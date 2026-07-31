@@ -193,3 +193,38 @@ async def test_ambiguous_query_with_no_evidence_clarifies_after_retrieval(
     assert result["status"] == "clarify"
     assert result["retrieval"]["candidate_count"] == 0
     assert result["trace"]["branch"] == "retrieval_first_clarify"
+
+
+async def test_unresolved_cross_domain_evidence_is_not_sent_to_answer_generation(
+    tmp_path: Path,
+) -> None:
+    retriever = FakeRetriever(
+        [
+            _chunk(
+                "hr",
+                domain="HR_POLICY",
+                content="Nhân viên nghỉ việc phải bàn giao.",
+                dense=0.82,
+                bm25=2.0,
+            ),
+            _chunk(
+                "windows",
+                domain="WINDOWS",
+                content="Windows yêu cầu khởi động lại.",
+                dense=0.81,
+                bm25=2.0,
+            ),
+        ]
+    )
+    llm = FakeLLM(['{"queries":["quy định xử lý trường hợp này"]}'])
+    pipeline = RAGPipeline(_settings(tmp_path), retriever, llm)
+
+    result = await pipeline.answer("nếu tôi bị vậy thì sao")
+
+    assert result["status"] == "clarify"
+    assert len(llm.calls) == 1
+    assert result["trace"]["candidate_quality"] == "cross_domain_ambiguity"
+    assert result["trace"]["rejected_chunks"] == {
+        "hr": "unresolved_cross_domain",
+        "windows": "unresolved_cross_domain",
+    }

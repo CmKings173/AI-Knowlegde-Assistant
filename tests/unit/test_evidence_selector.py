@@ -129,6 +129,24 @@ def test_quality_requests_rewrite_instead_of_hard_filtering_split_domains() -> N
     assert [chunk.chunk_id for chunk in result.selected] == ["hr", "it"]
 
 
+def test_agreement_below_both_thresholds_is_still_weak_evidence() -> None:
+    candidate = _chunk(
+        "weak-agreement",
+        domain="HR_POLICY",
+        content="Nội dung chỉ trùng các từ chung.",
+        dense=0.20,
+        bm25=0.40,
+    )
+
+    quality = assess_candidate_quality([candidate], _config())
+    result = select_evidence([candidate], max_chunks=4, config=_config())
+
+    assert quality.needs_rewrite is True
+    assert quality.reason == "weak_evidence"
+    assert result.selected == []
+    assert result.rejected[0].reason == "weak_signal"
+
+
 def test_selector_deduplicates_content_and_can_return_less_than_limit() -> None:
     candidates = [
         _chunk(

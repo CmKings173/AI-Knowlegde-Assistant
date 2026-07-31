@@ -80,11 +80,23 @@ def select_evidence(
     candidates: list[Chunk],
     max_chunks: int,
     config: EvidenceSelectionConfig,
+    *,
+    allow_cross_domain_ambiguity: bool = True,
 ) -> EvidenceSelectionResult:
     if max_chunks < 1:
         raise ValueError("max_chunks must be positive")
 
     quality = assess_candidate_quality(candidates, config)
+    if quality.reason == "cross_domain_ambiguity" and not allow_cross_domain_ambiguity:
+        return EvidenceSelectionResult(
+            selected=[],
+            rejected=[
+                RejectedEvidence(chunk, "unresolved_cross_domain")
+                for chunk in candidates
+            ],
+            quality=quality,
+        )
+
     selected: list[Chunk] = []
     rejected: list[RejectedEvidence] = []
     seen_hashes: set[str] = set()
@@ -122,10 +134,9 @@ def _is_strong(chunk: Chunk, config: EvidenceSelectionConfig) -> bool:
     has_bm25 = signals.bm25_score is not None
     if not has_dense and not has_bm25:
         return chunk.score > 0
-    agreement = has_dense and has_bm25
     dense_passed = has_dense and signals.dense_score >= config.min_dense_score
     bm25_passed = has_bm25 and signals.bm25_score >= config.min_bm25_score
-    return agreement or dense_passed or bm25_passed
+    return dense_passed or bm25_passed
 
 
 def _coherent_domain(

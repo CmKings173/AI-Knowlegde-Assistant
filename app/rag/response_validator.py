@@ -12,7 +12,10 @@ TIME_PATTERN = re.compile(
     re.IGNORECASE,
 )
 IP_PATTERN = re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)")
-PORT_PATTERN = re.compile(r"\b(?:port|cổng|cong)\s*[:=]?\s*(\d{2,5})\b", re.IGNORECASE)
+PORT_PATTERN = re.compile(
+    r"\b(?:port|cổng|cong)\s*[:=]?\s*(\d{2,5})(?!\d|\.\d)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)

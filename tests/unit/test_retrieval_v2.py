@@ -4,6 +4,7 @@ from app.config import Settings
 from app.domain.enums import KnowledgeType
 from app.domain.models import Chunk, RetrievalSignals
 from app.rag.lexical import LexicalIndex
+from app.rag.pipeline import _chunk_evidence
 from app.rag.retriever import Retriever
 
 
@@ -99,6 +100,25 @@ def test_retrieval_signals_are_transient_and_not_written_to_payload() -> None:
     )
 
     assert "retrieval" not in chunk.payload()
+
+
+def test_retrieval_evidence_log_contains_raw_provenance() -> None:
+    chunk = _chunk("one", "nội dung", score=0.03)
+    chunk.retrieval = RetrievalSignals(
+        dense_score=0.91,
+        dense_rank=1,
+        bm25_score=3.5,
+        bm25_rank=2,
+        rrf_score=0.03,
+        matched_queries=("original", "quy trình nghỉ việc"),
+    )
+
+    evidence = _chunk_evidence(chunk)
+
+    assert evidence["dense_score"] == 0.91
+    assert evidence["bm25_rank"] == 2
+    assert evidence["rrf_score"] == 0.03
+    assert evidence["matched_queries"] == ["original", "quy trình nghỉ việc"]
 
 
 def test_lexical_search_does_not_mutate_indexed_chunks() -> None:

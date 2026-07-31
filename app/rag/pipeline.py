@@ -459,6 +459,7 @@ class RAGPipeline:
             retrieval.chunks,
             self.settings.final_context_top_n,
             self.evidence_config,
+            allow_cross_domain_ambiguity=False,
         )
         selected_chunk_ids = [chunk.chunk_id for chunk in selection.selected]
         rejected_chunks = {
@@ -1203,11 +1204,31 @@ def _log_context_evidence(
 
 
 def _chunk_evidence(chunk: Chunk) -> dict[str, object]:
+    signals = chunk.retrieval
     return {
         "chunk_id": chunk.chunk_id,
         "document_id": chunk.document_id,
+        "domain": chunk.domain,
         "section": chunk.section,
         "score": round(chunk.score, 6),
+        "dense_score": (
+            round(signals.dense_score, 6)
+            if signals.dense_score is not None
+            else None
+        ),
+        "dense_rank": signals.dense_rank,
+        "bm25_score": (
+            round(signals.bm25_score, 6)
+            if signals.bm25_score is not None
+            else None
+        ),
+        "bm25_rank": signals.bm25_rank,
+        "rrf_score": (
+            round(signals.rrf_score, 6)
+            if signals.rrf_score is not None
+            else None
+        ),
+        "matched_queries": list(signals.matched_queries),
         "excerpt": _shorten(chunk.content, 500),
     }
 

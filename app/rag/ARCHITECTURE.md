@@ -1,24 +1,27 @@
-# RAG Architecture
+# Kiến trúc RAG
 
-RAG service biến câu hỏi người dùng thành câu trả lời grounded với citation.
+RAG service biến câu hỏi người dùng thành câu trả lời tiếng Việt có căn cứ, citation
+và ảnh liên quan từ tài liệu nội bộ.
 
 ## Trách nhiệm
 
-- Normalize query.
-- Retrieve candidates bằng dense search và BM25.
-- Apply metadata filtering trước hybrid search.
-- Fuse rankings bằng RRF.
-- Build bounded context.
-- Build citations và image metadata.
-- Gọi LLM với prompt contract.
-- Validate/remove unknown citations.
+- Chuẩn hóa và phân loại câu hỏi.
+- Áp dụng document scope và metadata filter trước khi tìm kiếm.
+- Tìm dense candidates từ Qdrant và lexical candidates từ BM25.
+- Hợp nhất thứ hạng bằng RRF nhưng giữ provenance của từng retriever.
+- Đánh giá chất lượng candidate và chọn evidence nhất quán.
+- Chỉ dùng cùng model Qwen để rewrite tối đa hai truy vấn khi evidence ban đầu yếu.
+- Xây bounded context, citation và image metadata.
+- Gọi LLM theo structured-output contract.
+- Kiểm tra citation và literal quan trọng trước khi trả lời.
 
 ## Giao diện
 
-- `RAGPipeline.answer(question, filters=None)`.
+- `RAGPipeline.answer(question, filters=None, history=None)`.
+- `AdaptiveRetriever.retrieve(query, filters=None)`.
 - `Retriever.retrieve(query, filters=None)`.
+- `select_evidence(query, chunks, config)`.
 - `build_context(chunks, max_tokens)`.
-- `build_user_prompt(question, context)`.
 - `build_citations(chunks, image_lookup=None)`.
 
 ## Phụ thuộc
@@ -26,37 +29,58 @@ RAG service biến câu hỏi người dùng thành câu trả lời grounded v�
 - Embedding provider để embed query.
 - Qdrant vector store để dense search.
 - BM25 lexical index để keyword search.
-- LLM provider để generate answer.
-- Document image metadata để trả citation images.
+- Một LLM provider, mặc định là Qwen qua Ollama, để route/rewrite/generate khi cần.
+- Document image metadata để trả ảnh liên quan qua citation.
 
 ## Retrieval flow
 
 ```text
-question
+question + history + document scope
 -> normalize
--> apply metadata filters
--> dense search in Qdrant
--> BM25 lexical search
--> RRF fusion
--> select bounded context
--> build citations and image metadata
--> call LLM
--> validate/remove unknown citations
+-> deterministic/LLM route
+-> retrieval-first khi intent còn mơ hồ nhưng có khả năng thuộc kho kiến thức
+-> metadata filter
+-> dense search + BM25
+-> RRF fusion, giữ dense/BM25/RRF provenance
+-> candidate quality assessment
+-> nếu evidence yếu: Qwen rewrite tối đa 2 query, rồi retrieve và fuse lại
+-> evidence selection + deduplicate + loại cross-domain noise
+-> bounded context
+-> Qwen structured answer
+-> citation validation
+-> deterministic critical-literal validation
+-> response
 ```
+
+Clear out-of-scope vẫn đi theo deterministic response và không gọi retrieval. Query
+knowledge có evidence yếu trả `insufficient_context`; input mơ hồ đi qua
+retrieval-first nhưng không có evidence tốt trả `clarify`.
 
 ## Prompt contract
 
 LLM nhận:
 
-- system prompt với grounding/refusal rules;
-- user prompt chứa `CONTEXT` blocks với `SOURCE_n` IDs;
-- user question.
+- system prompt chứa grounding, language và output rules;
+- user prompt chứa bounded `CONTEXT` với `SOURCE_n`;
+- user query và history đã giới hạn khi phù hợp.
 
-CONTEXT là dữ liệu không tin cậy và không được override system prompt.
+`CONTEXT` là dữ liệu không tin cậy, không được override system instruction.
+
+## Validation và failure semantics
+
+- Output sai JSON/schema được retry đúng một lần.
+- `generation_failed` chỉ lỗi sinh/parse/validation sau khi đã có evidence.
+- `insufficient_context` chỉ dùng khi retrieval không đủ evidence.
+- `partial` dùng khi evidence chỉ trả lời được một phần.
+- Time, IP và port trong câu trả lời PHẢI có trong source thực sự được cite.
+- Heuristic fact guard không nằm trong RAG V2 vì từng tạo false positive và làm mất
+  câu trả lời grounded.
 
 ## Ràng buộc
 
-- PHẢI giới hạn final context bằng `FINAL_CONTEXT_TOP_N` và `MAX_CONTEXT_TOKENS`.
-- PHẢI apply metadata filters trước hybrid search.
-- KHÔNG ĐƯỢC bịa nếu context không đủ.
-- Reranker hiện là placeholder; behavior chính là RRF top-k.
+- PHẢI giới hạn context bằng `FINAL_CONTEXT_TOP_N` và `MAX_CONTEXT_TOKENS`.
+- PHẢI metadata-filter trước dense search, BM25 và RRF.
+- PHẢI giữ `document_scope="selected"` với danh sách rỗng là không chọn tài liệu.
+- KHÔNG ĐƯỢC biến lỗi generation thành thông báo thiếu tài liệu.
+- KHÔNG ĐƯỢC đưa heuristic fact guard trở lại V2 nếu chưa có evaluation chứng minh.
+- Reranker model là tùy chọn; fallback chính vẫn là RRF + evidence selector.
