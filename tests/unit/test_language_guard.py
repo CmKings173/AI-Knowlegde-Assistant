@@ -36,6 +36,8 @@ def test_guard_accepts_vietnamese_and_safe_technical_text(
     [
         ("Rất tiếc, 请告诉我 vấn đề bạn đang gặp.", "mixed_cjk"),
         ("请告诉我您遇到的问题，我会尽力帮助。", "cjk"),
+        ("これは日本語の回答です。", "cjk"),
+        ("이 답변은 한국어로 작성되었습니다.", "cjk"),
         (
             "This response is written entirely in English and does not answer "
             "the user in the required Vietnamese language.",

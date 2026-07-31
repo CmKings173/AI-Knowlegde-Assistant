@@ -4,9 +4,20 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from app.rag.response_validator import CJK_PATTERN
-
 _WORD_PATTERN = re.compile(r"[^\W\d_]+", flags=re.UNICODE)
+_DISALLOWED_EAST_ASIAN_SCRIPT_PATTERN = re.compile(
+    "["
+    "\u1100-\u11ff"  # Hangul Jamo
+    "\u3040-\u309f"  # Hiragana
+    "\u30a0-\u30ff"  # Katakana
+    "\u3130-\u318f"  # Hangul Compatibility Jamo
+    "\u31f0-\u31ff"  # Katakana Phonetic Extensions
+    "\u3400-\u4dbf"  # CJK Unified Ideographs Extension A
+    "\u4e00-\u9fff"  # CJK Unified Ideographs
+    "\uac00-\ud7af"  # Hangul Syllables
+    "\uf900-\ufaff"  # CJK Compatibility Ideographs
+    "]"
+)
 _MIN_LANGUAGE_SAMPLE_LETTERS = 32
 _VIETNAMESE_WORDS = {
     "bạn",
@@ -76,7 +87,7 @@ class VietnameseLanguageGuard:
         if not value:
             return LanguageDecision(False, "empty", "empty_output")
 
-        has_cjk = bool(CJK_PATTERN.search(value))
+        has_cjk = bool(_DISALLOWED_EAST_ASIAN_SCRIPT_PATTERN.search(value))
         has_latin = any(_is_latin_letter(char) for char in value)
         if has_cjk:
             return LanguageDecision(

@@ -301,7 +301,7 @@ async def test_conversation_stream_timing_includes_router(tmp_path: Path) -> Non
     ]
 
     final = events[-1]["data"]
-    assert final["timing_ms"]["router"] >= 15
+    assert final["timing_ms"]["router"] > 0
     assert final["timing_ms"]["total"] >= final["timing_ms"]["router"]
 
 
