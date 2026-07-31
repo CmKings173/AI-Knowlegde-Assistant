@@ -1,68 +1,58 @@
-# Todo: Retrieval RAG V2
+# Todo: Multi-stage Router
 
-## Chuẩn bị
+## Specification
 
-- [x] Bảo toàn experiments tại `archive-rag-experiments-e931279`.
-- [x] Revert regression trên `hotfix-restore-rag-baseline`.
-- [x] Tạo branch `feature-rag-retrieval-v2`.
-- [x] Viết và duyệt design spec tiếng Việt.
-- [x] Duyệt implementation plan.
+- [x] Chốt phạm vi Conversation và Unsupported với người dùng.
+- [x] Chốt luồng Turn -> Embedding -> Qwen fallback -> Capability -> Guard.
+- [x] Ghi design spec.
+- [x] Ghi implementation plan.
 
-## Task 1: Evaluation contract
+## Task 1: Contracts and Turn Resolver
 
-- [x] Viết test fail cho schema và report evaluation.
-- [x] Thêm dataset có version theo nhóm hành vi.
-- [x] Cập nhật script evaluation.
-- [x] Chạy test và lint tập trung.
-- [x] Commit lát cắt.
+- [ ] Viết test RED cho typed contracts và turn resolution.
+- [ ] Implement contract và resolver tối thiểu.
+- [ ] Chạy focused tests.
 
-## Task 2: Retrieval provenance
+## Task 2: Embedding Classifier
 
-- [x] Viết test fail cho dense/BM25/RRF provenance.
-- [x] Giữ score và rank gốc qua fusion.
-- [x] Giữ tương thích với pipeline hiện tại.
-- [x] Chạy focused và regression tests.
-- [x] Commit lát cắt.
+- [ ] Viết test RED cho threshold, margin, cache và provider error.
+- [ ] Implement classifier không dependency mới.
+- [ ] Chạy Checkpoint A.
 
-## Task 3: Evidence selector
+## Task 3: Qwen Structured Classifier
 
-- [x] Viết test tái hiện HR context bị lẫn Windows.
-- [x] Viết test recall, dedup và soft metadata.
-- [x] Implement candidate quality assessor.
-- [x] Implement evidence selector với reason code.
-- [x] Chạy Checkpoint A và commit.
+- [ ] Viết test RED cho valid/malformed/unknown JSON.
+- [ ] Implement prompt, parser và provider fallback.
+- [ ] Chạy focused tests.
 
-## Task 4: Adaptive retrieval
+## Task 4: Capability Router
 
-- [x] Viết test normal path không gọi rewrite.
-- [x] Viết test weak path dùng cùng Qwen rewrite.
-- [x] Viết test rewrite lỗi fallback query gốc.
-- [x] Implement schema/prompt và multi-query fusion.
-- [x] Chạy focused tests và commit.
+- [ ] Viết test RED cho RAG/Conversation/Unsupported/Clarify/Tool disabled.
+- [ ] Implement capability decisions không default sang RAG.
+- [ ] Chạy Checkpoint B.
 
-## Task 5: Pipeline retrieval-first
+## Task 5: Pipeline Integration
 
-- [x] Viết regression test cho câu chưa có keyword domain.
-- [x] Viết test document scope, history và broad-section.
-- [x] Tích hợp quality, adaptive retrieval và selector.
-- [x] Thêm trace selected/rejected reason.
-- [x] Chạy focused tests và commit.
+- [ ] Viết regression test GitHub không retrieval.
+- [ ] Viết regression test conversation repair không retrieval.
+- [ ] Viết test internal knowledge vẫn retrieval.
+- [ ] Viết test uncertain embedding gọi Qwen đúng một lần.
+- [ ] Integrate multi-stage orchestrator.
+- [ ] Chạy pipeline focused tests.
 
-## Task 6: Status và validation
+## Task 6: Guard and Conversation State
 
-- [x] Viết test phân biệt generation failure với thiếu context.
-- [x] Viết test citation và critical literal.
-- [x] Tắt fact guard heuristic khỏi V2 path.
-- [x] Chạy Checkpoint B và commit.
+- [ ] Viết test branch-specific status.
+- [ ] Thêm optional conversation-state contract.
+- [ ] Truyền metadata từ frontend history.
+- [ ] Build frontend.
 
-## Task 7: Kiểm chứng và review
+## Task 7: Final Verification
 
-- [x] Chạy Ruff toàn repo.
-- [x] Chạy toàn bộ unit tests.
-- [x] Chạy harness check.
-- [x] Build frontend.
-- [x] Chạy evaluation với service thật nếu sẵn sàng.
-- [x] Cập nhật `ARCHITECTURE.md` và `PROGRESS.md`.
-- [x] Review correctness, readability, architecture, security và performance.
-- [x] Xử lý toàn bộ finding Critical/Required.
-- [x] Xác nhận branch sạch và chuẩn bị push.
+- [ ] Full backend unit suite.
+- [ ] Ruff toàn repo.
+- [ ] Harness check.
+- [ ] Frontend production build.
+- [ ] Cập nhật architecture/progress.
+- [ ] Review correctness/readability/architecture/security/performance.
+- [ ] Xử lý mọi finding Critical/Required.
