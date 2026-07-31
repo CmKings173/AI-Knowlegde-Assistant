@@ -6,15 +6,15 @@
 - [x] Revert regression trên `hotfix-restore-rag-baseline`.
 - [x] Tạo branch `feature-rag-retrieval-v2`.
 - [x] Viết và duyệt design spec tiếng Việt.
-- [ ] Duyệt implementation plan.
+- [x] Duyệt implementation plan.
 
 ## Task 1: Evaluation contract
 
-- [ ] Viết test fail cho schema và report evaluation.
-- [ ] Thêm dataset có version theo nhóm hành vi.
-- [ ] Cập nhật script evaluation.
-- [ ] Chạy test và lint tập trung.
-- [ ] Commit lát cắt.
+- [x] Viết test fail cho schema và report evaluation.
+- [x] Thêm dataset có version theo nhóm hành vi.
+- [x] Cập nhật script evaluation.
+- [x] Chạy test và lint tập trung.
+- [x] Commit lát cắt.
 
 ## Task 2: Retrieval provenance
 
