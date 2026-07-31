@@ -9,15 +9,15 @@
 
 ## Task 2: Conversation stream executor
 
-- [ ] Write RED tests for prefix buffering and progressive deltas.
-- [ ] Write RED tests for retry, fallback, mid-stream interruption, and cancellation.
-- [ ] Implement `ConversationStreamExecutor`.
-- [ ] Run focused tests and commit the increment.
+- [x] Write RED tests for prefix buffering and progressive deltas.
+- [x] Write RED tests for retry, fallback, mid-stream interruption, and cancellation.
+- [x] Implement `ConversationStreamExecutor`.
+- [x] Run focused tests and commit the increment.
 
 ## Checkpoint A
 
-- [ ] Language guard and executor tests pass.
-- [ ] No dependency or model added.
+- [x] Language guard and executor tests pass.
+- [x] No dependency or model added.
 
 ## Task 3: Pipeline integration
 
