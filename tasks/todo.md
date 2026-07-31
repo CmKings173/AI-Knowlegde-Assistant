@@ -19,15 +19,15 @@
 
 ## Task 3: First-failure classification
 
-- [ ] Write RED tests for router, retrieval, evidence, generation, and validation failures.
-- [ ] Implement stable failure stage and reason codes.
-- [ ] Run focused evaluation tests.
-- [ ] Commit the increment.
+- [x] Write RED tests for router, retrieval, evidence, generation, and validation failures.
+- [x] Implement stable failure stage and reason codes.
+- [x] Run focused evaluation tests.
+- [x] Commit the increment.
 
 ## Checkpoint A
 
-- [ ] `uv run python -m pytest tests/unit/test_rag_e2e_evaluation.py tests/unit/test_retrieval_evaluation.py -q`
-- [ ] Existing retrieval-only evaluator remains backward compatible.
+- [x] `uv run python -m pytest tests/unit/test_rag_e2e_evaluation.py tests/unit/test_retrieval_evaluation.py -q`
+- [x] Existing retrieval-only evaluator remains backward compatible.
 
 ## Task 4: Live runner
 

@@ -8,6 +8,9 @@ import pytest
 from app.rag.evaluation import (
     EvaluationCase,
     EvaluationCaseError,
+    EvaluationSource,
+    ResponseEvaluation,
+    classify_first_failure,
     evaluate_response,
     load_evaluation_cases,
 )
@@ -221,3 +224,106 @@ def test_evaluate_response_reports_status_and_language_failures() -> None:
     assert not result.passed
     assert "unexpected_status:out_of_scope" in result.failure_reasons
     assert "invalid_language:disallowed_cjk" in result.failure_reasons
+
+
+def test_classify_first_failure_reports_router_stage_first() -> None:
+    case = EvaluationCase(
+        case_id="github",
+        category="routing",
+        question="github",
+        outcome="out_of_scope",
+        expected_capability="unsupported",
+    )
+
+    result = classify_first_failure(
+        case,
+        trace={"capability": "rag"},
+        retrieved_sources=[],
+        selected_sources=[],
+        response_evaluation=None,
+    )
+
+    assert result.first_failure_stage == "router"
+    assert result.failure_reasons == ["capability_mismatch:rag"]
+
+
+def test_classify_first_failure_reports_retrieval_stage_before_evidence() -> None:
+    case = EvaluationCase(
+        case_id="late-policy",
+        category="fact",
+        question="di muon",
+        outcome="answerable",
+        expected_documents=["Noi Quy"],
+        expected_sections=["Thoi gian"],
+    )
+
+    result = classify_first_failure(
+        case,
+        trace={"capability": "rag"},
+        retrieved_sources=[EvaluationSource(document="Noi Quy", section="Hang hoa")],
+        selected_sources=[],
+        response_evaluation=None,
+    )
+
+    assert result.first_failure_stage == "retrieval"
+    assert result.failure_reasons == ["expected_source_missing_from_retrieval"]
+
+
+def test_classify_first_failure_reports_evidence_stage_when_retrieval_found_source() -> None:
+    case = EvaluationCase(
+        case_id="late-policy",
+        category="fact",
+        question="di muon",
+        outcome="answerable",
+        expected_documents=["Noi Quy"],
+        expected_sections=["Thoi gian"],
+    )
+
+    result = classify_first_failure(
+        case,
+        trace={"capability": "rag"},
+        retrieved_sources=[EvaluationSource(document="Noi Quy", section="Thoi gian")],
+        selected_sources=[EvaluationSource(document="Noi Quy", section="Hang hoa")],
+        response_evaluation=None,
+    )
+
+    assert result.first_failure_stage == "evidence"
+    assert result.failure_reasons == ["expected_source_dropped_from_context"]
+
+
+def test_classify_first_failure_reports_generation_or_validation_after_context() -> None:
+    case = EvaluationCase(
+        case_id="late-policy",
+        category="fact",
+        question="di muon",
+        outcome="answerable",
+        expected_documents=["Noi Quy"],
+        expected_sections=["Thoi gian"],
+    )
+    source = EvaluationSource(document="Noi Quy", section="Thoi gian")
+
+    generation_result = classify_first_failure(
+        case,
+        trace={"capability": "rag"},
+        retrieved_sources=[source],
+        selected_sources=[source],
+        response_evaluation=ResponseEvaluation(
+            passed=False,
+            failure_reasons=["missing_required_fact_group:0"],
+        ),
+    )
+    validation_result = classify_first_failure(
+        case,
+        trace={"capability": "rag", "parse_error": "invalid_json"},
+        retrieved_sources=[source],
+        selected_sources=[source],
+        response_evaluation=ResponseEvaluation(
+            passed=False,
+            failure_reasons=["missing_citation"],
+        ),
+    )
+
+    assert generation_result.first_failure_stage == "generation"
+    assert generation_result.failure_reasons == ["missing_required_fact_group:0"]
+    assert validation_result.first_failure_stage == "validation"
+    assert validation_result.failure_reasons == ["parse_error:invalid_json"]

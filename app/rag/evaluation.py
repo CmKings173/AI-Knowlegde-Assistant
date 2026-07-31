@@ -62,6 +62,19 @@ class ResponseEvaluation:
     outcome_matched: bool | None = None
 
 
+@dataclass(frozen=True)
+class EvaluationSource:
+    document: str
+    section: str
+    chunk_id: str | None = None
+
+
+@dataclass(frozen=True)
+class FailureClassification:
+    first_failure_stage: str
+    failure_reasons: list[str]
+
+
 def load_evaluation_cases(path: Path) -> list[EvaluationCase]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -83,6 +96,50 @@ def load_evaluation_cases(path: Path) -> list[EvaluationCase]:
     if not cases:
         raise EvaluationCaseError("evaluation dataset must not be empty")
     return cases
+
+
+def classify_first_failure(
+    case: EvaluationCase,
+    *,
+    trace: dict[str, Any],
+    retrieved_sources: list[EvaluationSource],
+    selected_sources: list[EvaluationSource],
+    response_evaluation: ResponseEvaluation | None,
+) -> FailureClassification:
+    expected_capability = case.expected_capability
+    if expected_capability is None and case.retrieval_applicable:
+        expected_capability = "rag"
+    actual_capability = _optional_string(trace.get("capability"))
+    if expected_capability and actual_capability != expected_capability:
+        return FailureClassification(
+            first_failure_stage="router",
+            failure_reasons=[f"capability_mismatch:{actual_capability or 'missing'}"],
+        )
+
+    expected_sources = _expected_sources(case)
+    if expected_sources:
+        if not _sources_contain_expected(retrieved_sources, expected_sources):
+            return FailureClassification(
+                first_failure_stage="retrieval",
+                failure_reasons=["expected_source_missing_from_retrieval"],
+            )
+        if not _sources_contain_expected(selected_sources, expected_sources):
+            return FailureClassification(
+                first_failure_stage="evidence",
+                failure_reasons=["expected_source_dropped_from_context"],
+            )
+
+    validation_reasons = _validation_failure_reasons(trace, response_evaluation)
+    if validation_reasons:
+        return FailureClassification("validation", validation_reasons)
+
+    if response_evaluation and not response_evaluation.passed:
+        return FailureClassification(
+            "generation",
+            response_evaluation.failure_reasons,
+        )
+
+    return FailureClassification("none", [])
 
 
 def evaluate_response(
@@ -392,3 +449,59 @@ def _normalize_text(value: str) -> str:
         char for char in decomposed if unicodedata.category(char) != "Mn"
     )
     return " ".join(without_marks.casefold().split())
+
+
+def _optional_string(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _expected_sources(case: EvaluationCase) -> list[EvaluationSource]:
+    documents = case.expected_documents
+    sections = case.expected_sections
+    if documents is None and case.expected_document:
+        documents = [case.expected_document]
+    if sections is None and case.expected_section:
+        sections = [case.expected_section]
+    if not documents or not sections:
+        return []
+    return [
+        EvaluationSource(document=document, section=section)
+        for document in documents
+        for section in sections
+    ]
+
+
+def _sources_contain_expected(
+    actual_sources: list[EvaluationSource],
+    expected_sources: list[EvaluationSource],
+) -> bool:
+    for expected in expected_sources:
+        expected_document = _normalize_text(expected.document)
+        expected_section = _normalize_text(expected.section)
+        for actual in actual_sources:
+            actual_document = _normalize_text(actual.document)
+            actual_section = _normalize_text(actual.section)
+            if expected_document in actual_document and expected_section in actual_section:
+                return True
+    return False
+
+
+def _validation_failure_reasons(
+    trace: dict[str, Any],
+    response_evaluation: ResponseEvaluation | None,
+) -> list[str]:
+    parse_error = _optional_string(trace.get("parse_error"))
+    if parse_error:
+        return [f"parse_error:{parse_error}"]
+    literal_validation_error = _optional_string(trace.get("literal_validation_error"))
+    if literal_validation_error:
+        return [f"literal_validation_error:{literal_validation_error}"]
+    if response_evaluation is None:
+        return []
+    return [
+        reason
+        for reason in response_evaluation.failure_reasons
+        if reason == "missing_citation" or reason.startswith("invalid_language:")
+    ]
