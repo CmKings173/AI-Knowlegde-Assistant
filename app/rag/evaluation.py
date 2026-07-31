@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from app.rag.guards.language_guard import VietnameseLanguageGuard
 
 ALLOWED_OUTCOMES = {"answerable", "partial", "unanswerable", "out_of_scope"}
 RETRIEVAL_OUTCOMES = {"answerable", "partial"}
 ALLOWED_DOCUMENT_SCOPES = {"all", "selected"}
 ALLOWED_HISTORY_ROLES = {"user", "assistant"}
+DEFAULT_STATUS_BY_OUTCOME = {
+    "answerable": "answered",
+    "partial": "partial",
+    "unanswerable": "insufficient_context",
+    "out_of_scope": "out_of_scope",
+}
+_SOURCE_PATTERN = re.compile(r"\bSOURCE_\d+\b")
 
 
 class EvaluationCaseError(ValueError):
@@ -40,6 +51,17 @@ class EvaluationCase:
         return self.outcome in RETRIEVAL_OUTCOMES
 
 
+@dataclass(frozen=True)
+class ResponseEvaluation:
+    passed: bool
+    failure_reasons: list[str]
+    required_fact_recall: float | None = None
+    forbidden_fact_violations: list[str] | None = None
+    citation_valid: bool | None = None
+    vietnamese_valid: bool | None = None
+    outcome_matched: bool | None = None
+
+
 def load_evaluation_cases(path: Path) -> list[EvaluationCase]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -61,6 +83,44 @@ def load_evaluation_cases(path: Path) -> list[EvaluationCase]:
     if not cases:
         raise EvaluationCaseError("evaluation dataset must not be empty")
     return cases
+
+
+def evaluate_response(
+    case: EvaluationCase,
+    *,
+    answer: str,
+    status: str,
+    citations: list[str] | None = None,
+) -> ResponseEvaluation:
+    failure_reasons: list[str] = []
+    normalized_answer = _normalize_text(answer)
+    expected_status = case.expected_outcome or DEFAULT_STATUS_BY_OUTCOME.get(case.outcome)
+    outcome_matched = expected_status is None or status == expected_status
+    if not outcome_matched:
+        failure_reasons.append(f"unexpected_status:{status}")
+
+    required_recall = _required_fact_recall(case, normalized_answer, failure_reasons)
+    forbidden_violations = _forbidden_fact_violations(case, normalized_answer)
+    failure_reasons.extend(forbidden_violations)
+
+    citation_valid = _citation_valid(case, answer, citations)
+    if citation_valid is False:
+        failure_reasons.append("missing_citation")
+
+    language_decision = VietnameseLanguageGuard().validate_complete(answer)
+    vietnamese_valid = language_decision.accepted
+    if not vietnamese_valid:
+        failure_reasons.append(f"invalid_language:{language_decision.reason}")
+
+    return ResponseEvaluation(
+        passed=not failure_reasons,
+        failure_reasons=failure_reasons,
+        required_fact_recall=required_recall,
+        forbidden_fact_violations=forbidden_violations,
+        citation_valid=citation_valid,
+        vietnamese_valid=vietnamese_valid,
+        outcome_matched=outcome_matched,
+    )
 
 
 def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -283,3 +343,52 @@ def _optional_history(
             parsed[optional_field] = optional_value.strip()
         history.append(parsed)
     return history
+
+
+def _required_fact_recall(
+    case: EvaluationCase,
+    normalized_answer: str,
+    failure_reasons: list[str],
+) -> float | None:
+    if not case.required_fact_groups:
+        return None
+    hits = 0
+    for index, group in enumerate(case.required_fact_groups):
+        if any(_normalize_text(variant) in normalized_answer for variant in group):
+            hits += 1
+            continue
+        failure_reasons.append(f"missing_required_fact_group:{index}")
+    return hits / len(case.required_fact_groups)
+
+
+def _forbidden_fact_violations(
+    case: EvaluationCase,
+    normalized_answer: str,
+) -> list[str]:
+    if not case.forbidden_fact_groups:
+        return []
+    violations: list[str] = []
+    for index, group in enumerate(case.forbidden_fact_groups):
+        if all(_normalize_text(variant) in normalized_answer for variant in group):
+            violations.append(f"forbidden_fact_group:{index}")
+    return violations
+
+
+def _citation_valid(
+    case: EvaluationCase,
+    answer: str,
+    citations: list[str] | None,
+) -> bool | None:
+    if case.citation_required is not True:
+        return None
+    citation_ids = [item for item in (citations or []) if item.strip()]
+    return bool(citation_ids or _SOURCE_PATTERN.search(answer))
+
+
+def _normalize_text(value: str) -> str:
+    value = value.replace("đ", "d").replace("Đ", "D")
+    decomposed = unicodedata.normalize("NFKD", value)
+    without_marks = "".join(
+        char for char in decomposed if unicodedata.category(char) != "Mn"
+    )
+    return " ".join(without_marks.casefold().split())

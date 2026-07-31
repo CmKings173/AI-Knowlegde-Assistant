@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from app.rag.evaluation import EvaluationCaseError, load_evaluation_cases
+from app.rag.evaluation import (
+    EvaluationCase,
+    EvaluationCaseError,
+    evaluate_response,
+    load_evaluation_cases,
+)
 
 
 def _write_cases(path: Path, cases: list[dict[str, object]]) -> None:
@@ -124,3 +129,95 @@ def test_load_evaluation_cases_rejects_invalid_execution_fields(
 
     with pytest.raises(EvaluationCaseError, match=message):
         load_evaluation_cases(dataset)
+
+
+def test_evaluate_response_scores_required_facts_with_any_of_matching() -> None:
+    case = EvaluationCase(
+        case_id="late-policy",
+        category="fact",
+        question="di muon co sao khong",
+        outcome="answerable",
+        required_fact_groups=[
+            ["di muon", "den muon"],
+            ["bao cho cap tren", "thong bao cho quan ly"],
+        ],
+    )
+
+    result = evaluate_response(
+        case,
+        answer="Nếu đến muộn, nhân viên cần thông báo cho quản lý. [SOURCE_1]",
+        status="answered",
+        citations=["SOURCE_1"],
+    )
+
+    assert result.passed
+    assert result.required_fact_recall == 1.0
+    assert result.failure_reasons == []
+
+
+def test_evaluate_response_reports_missing_required_facts() -> None:
+    case = EvaluationCase(
+        case_id="late-policy",
+        category="fact",
+        question="di muon co sao khong",
+        outcome="answerable",
+        required_fact_groups=[
+            ["di muon", "den muon"],
+            ["bao cho cap tren", "thong bao cho quan ly"],
+        ],
+    )
+
+    result = evaluate_response(
+        case,
+        answer="Nhan vien can tuan thu noi quy cong ty. [SOURCE_1]",
+        status="answered",
+        citations=["SOURCE_1"],
+    )
+
+    assert not result.passed
+    assert result.required_fact_recall == 0.0
+    assert "missing_required_fact_group:0" in result.failure_reasons
+    assert "missing_required_fact_group:1" in result.failure_reasons
+
+
+def test_evaluate_response_reports_forbidden_facts_and_missing_citation() -> None:
+    case = EvaluationCase(
+        case_id="routing-github",
+        category="routing",
+        question="github",
+        outcome="out_of_scope",
+        forbidden_fact_groups=[["hang hoa", "tai san"]],
+        citation_required=True,
+    )
+
+    result = evaluate_response(
+        case,
+        answer="Cau hoi nay lien quan den hang hoa tai san.",
+        status="out_of_scope",
+        citations=[],
+    )
+
+    assert not result.passed
+    assert result.forbidden_fact_violations == ["forbidden_fact_group:0"]
+    assert "missing_citation" in result.failure_reasons
+
+
+def test_evaluate_response_reports_status_and_language_failures() -> None:
+    case = EvaluationCase(
+        case_id="language-regression",
+        category="conversation",
+        question="toi buon qua",
+        outcome="out_of_scope",
+        expected_outcome="conversational",
+    )
+
+    result = evaluate_response(
+        case,
+        answer="请联系管理员获取帮助。",
+        status="out_of_scope",
+        citations=[],
+    )
+
+    assert not result.passed
+    assert "unexpected_status:out_of_scope" in result.failure_reasons
+    assert "invalid_language:disallowed_cjk" in result.failure_reasons

@@ -10,12 +10,12 @@
 
 ## Task 2: Deterministic scoring
 
-- [ ] Write RED tests for required fact groups.
-- [ ] Write RED tests for forbidden fact groups.
-- [ ] Write RED tests for citation-required and Vietnamese compliance checks.
-- [ ] Implement deterministic scoring helpers.
-- [ ] Run focused evaluation tests.
-- [ ] Commit the increment.
+- [x] Write RED tests for required fact groups.
+- [x] Write RED tests for forbidden fact groups.
+- [x] Write RED tests for citation-required and Vietnamese compliance checks.
+- [x] Implement deterministic scoring helpers.
+- [x] Run focused evaluation tests.
+- [x] Commit the increment.
 
 ## Task 3: First-failure classification
 
