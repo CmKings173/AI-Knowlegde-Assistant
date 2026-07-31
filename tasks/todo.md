@@ -26,11 +26,11 @@
 
 ## Task 3: Evidence selector
 
-- [ ] Viết test tái hiện HR context bị lẫn Windows.
-- [ ] Viết test recall, dedup và soft metadata.
-- [ ] Implement candidate quality assessor.
-- [ ] Implement evidence selector với reason code.
-- [ ] Chạy Checkpoint A và commit.
+- [x] Viết test tái hiện HR context bị lẫn Windows.
+- [x] Viết test recall, dedup và soft metadata.
+- [x] Implement candidate quality assessor.
+- [x] Implement evidence selector với reason code.
+- [x] Chạy Checkpoint A và commit.
 
 ## Task 4: Adaptive retrieval
 
