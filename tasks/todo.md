@@ -50,10 +50,10 @@
 
 ## Task 6: Status và validation
 
-- [ ] Viết test phân biệt generation failure với thiếu context.
-- [ ] Viết test citation và critical literal.
-- [ ] Tắt fact guard heuristic khỏi V2 path.
-- [ ] Chạy Checkpoint B và commit.
+- [x] Viết test phân biệt generation failure với thiếu context.
+- [x] Viết test citation và critical literal.
+- [x] Tắt fact guard heuristic khỏi V2 path.
+- [x] Chạy Checkpoint B và commit.
 
 ## Task 7: Kiểm chứng và review
 

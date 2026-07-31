@@ -19,6 +19,7 @@ from app.rag.lexical import LexicalIndex
 from app.rag.pipeline import (
     CLARIFY_RESPONSE,
     CONVERSATIONAL_RESPONSE,
+    GENERATION_FAILED_RESPONSE,
     NO_DOCUMENTS_SELECTED_RESPONSE,
     OUT_OF_SCOPE_EMOTION_RESPONSE,
     OUT_OF_SCOPE_LEISURE_RESPONSE,
@@ -1785,13 +1786,13 @@ async def test_pipeline_returns_safe_fallback_after_retry_failure(tmp_path: Path
     result = await pipeline.answer("Cách mở NAS?")
 
     assert llm.calls == 2
-    assert result["status"] == "insufficient_context"
-    assert result["answer"] == "Tôi chưa tìm thấy thông tin này trong tài liệu nội bộ hiện có."
+    assert result["status"] == "generation_failed"
+    assert result["answer"] == GENERATION_FAILED_RESPONSE
     assert result["citations"] == []
 
 
 @pytest.mark.asyncio
-async def test_pipeline_retries_when_answer_adds_unsupported_day(
+async def test_pipeline_does_not_retry_noncritical_day_claim(
     tmp_path: Path,
 ) -> None:
     source_text = (
@@ -1838,14 +1839,12 @@ async def test_pipeline_retries_when_answer_adds_unsupported_day(
     result = await pipeline.answer("m\u1ea5y h l\u00e0m v\u00e0 m\u1ea5y h v\u1ec1")
 
     assert result["status"] == "answered"
-    assert "ch\u1ee7 nh\u1eadt" not in result["answer"].lower()
-    assert "th\u1ee9 7" in result["answer"].lower()
-    assert len(llm.calls) == 2
-    assert "unsupported_day:SUN" in llm.calls[1]
+    assert "ch\u1ee7 nh\u1eadt" in result["answer"].lower()
+    assert len(llm.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_pipeline_allows_fact_supported_by_full_context_when_citation_is_incomplete(
+async def test_pipeline_rejects_literal_not_supported_by_its_citation(
     tmp_path: Path,
 ) -> None:
     class FakeRetriever:
@@ -1891,14 +1890,16 @@ async def test_pipeline_allows_fact_supported_by_full_context_when_citation_is_i
 
     result = await pipeline.answer("th\u1eddi gian l\u00e0m vi\u1ec7c")
 
-    assert result["status"] == "answered"
-    assert "17:30" in result["answer"]
-    assert result["trace"]["fact_guard_error"] is None
+    assert result["status"] == "generation_failed"
+    assert result["answer"] == GENERATION_FAILED_RESPONSE
+    assert result["trace"]["literal_validation_error"] == (
+        "unsupported_literal:time:08:00,time:17:30"
+    )
     assert llm.calls == 1
 
 
 @pytest.mark.asyncio
-async def test_pipeline_returns_generation_failed_when_fact_retry_still_fails(
+async def test_pipeline_does_not_retry_for_removed_heuristic_fact_guard(
     tmp_path: Path,
 ) -> None:
     source_text = "S\u00e1ng th\u1ee9 7 l\u00e0m vi\u1ec7c t\u1eeb 8:00 \u0111\u1ebfn 12:00."
@@ -1932,9 +1933,9 @@ async def test_pipeline_returns_generation_failed_when_fact_retry_still_fails(
 
     result = await pipeline.answer("m\u1ea5y h l\u00e0m v\u00e0 m\u1ea5y h v\u1ec1")
 
-    assert llm.calls == 2
-    assert result["status"] == "generation_failed"
-    assert result["trace"]["fact_guard_error"] == "unsupported_day:SUN"
+    assert llm.calls == 1
+    assert result["status"] == "answered"
+    assert result["trace"]["literal_validation_error"] is None
 
 
 @pytest.mark.asyncio

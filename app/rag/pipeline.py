@@ -20,11 +20,6 @@ from app.rag.evidence_selector import (
     EvidenceSelectionConfig,
     select_evidence,
 )
-from app.rag.fact_guard import (
-    FactValidationResult,
-    describe_fact_guard_retry_error,
-    validate_fact_consistency,
-)
 from app.rag.intent_router import FollowUpSubtype, Intent, IntentDecision, IntentRouter
 from app.rag.prompts import (
     CONVERSATIONAL_STREAM_SYSTEM_PROMPT,
@@ -43,9 +38,11 @@ from app.rag.prompts import (
 )
 from app.rag.query_normalizer import QueryNormalizer
 from app.rag.response_validator import (
+    CriticalLiteralValidation,
     citation_ids_in_answer,
     contains_disallowed_cjk,
     should_refuse,
+    validate_critical_literals,
 )
 from app.rag.retriever import Retriever
 from app.rag.section_expander import expand_section_chunks
@@ -529,7 +526,7 @@ class RAGPipeline:
         citations = build_citations(selected, image_lookup)
         available_sources = {citation.citation_id for citation in citations}
         _log_context_evidence("knowledge", normalized, retrieval.chunks, selected)
-        fact_result: FactValidationResult | None = None
+        literal_result: CriticalLiteralValidation | None = None
         with measure_ms(timing, "llm"):
             user_prompt = build_user_prompt(normalized, context, history)
             raw_answer = await self.llm_provider.generate(SYSTEM_PROMPT, user_prompt)
@@ -539,7 +536,6 @@ class RAGPipeline:
                 available_sources,
                 allowed_statuses=RAG_STATUSES,
             )
-            fact_result = _validate_fact_guard(parsed, citations, context)
             if not parsed.is_valid:
                 retry_prompt = build_retry_prompt(
                     normalized,
@@ -554,33 +550,9 @@ class RAGPipeline:
                     available_sources,
                     allowed_statuses=RAG_STATUSES,
                 )
-                fact_result = _validate_fact_guard(parsed, citations, context)
-            elif fact_result and not fact_result.passed:
-                _trace(
-                    "rag_fact_guard_rejected",
-                    branch="knowledge",
-                    reason=fact_result.reason,
-                    answer_days=sorted(fact_result.answer_facts.days),
-                    context_days=sorted(fact_result.context_facts.days),
-                    answer_times=sorted(fact_result.answer_facts.times),
-                    context_times=sorted(fact_result.context_facts.times),
-                )
-                retry_prompt = build_retry_prompt(
-                    normalized,
-                    context,
-                    describe_fact_guard_retry_error(fact_result),
-                    history,
-                )
-                raw_answer = await self.llm_provider.generate(SYSTEM_PROMPT, retry_prompt)
-                _trace("rag_llm_raw", branch="knowledge_fact_retry", output=raw_answer[:2000])
-                parsed = parse_model_output(
-                    raw_answer,
-                    available_sources,
-                    allowed_statuses=RAG_STATUSES,
-                )
-                fact_result = _validate_fact_guard(parsed, citations, context)
+            literal_result = _validate_literal_support(parsed, citations)
 
-        if fact_result and not fact_result.passed:
+        if literal_result and not literal_result.passed:
             status = "generation_failed"
             answer = GENERATION_FAILED_RESPONSE
             response_citations = _citations_for_sources(citations, parsed.sources)
@@ -589,8 +561,8 @@ class RAGPipeline:
             answer = parsed.answer
             response_citations = _citations_for_sources(citations, parsed.sources)
         else:
-            status = FALLBACK_STATUS
-            answer = REFUSAL
+            status = "generation_failed"
+            answer = GENERATION_FAILED_RESPONSE
             response_citations = []
 
         timing["total"] = int((time.perf_counter() - total_start) * 1000)
@@ -604,7 +576,7 @@ class RAGPipeline:
             llm_ms=timing["llm"],
             total_ms=timing["total"],
             parse_error=parsed.error,
-            fact_guard_error=fact_result.reason if fact_result and not fact_result.passed else None,
+            literal_validation_error=_literal_validation_error(literal_result),
         )
         return _response(
             status=status,
@@ -627,9 +599,7 @@ class RAGPipeline:
                 "candidate_quality": selection.quality.reason,
                 "selected_chunk_ids": selected_chunk_ids,
                 "rejected_chunks": rejected_chunks,
-                "fact_guard_error": (
-                    fact_result.reason if fact_result and not fact_result.passed else None
-                ),
+                "literal_validation_error": _literal_validation_error(literal_result),
             },
         )
 
@@ -942,7 +912,7 @@ class RAGPipeline:
         citations = build_citations(selected, image_lookup)
         available_sources = {citation.citation_id for citation in citations}
         _log_context_evidence("broad_section", question, expansion_chunks, selected)
-        fact_result: FactValidationResult | None = None
+        literal_result: CriticalLiteralValidation | None = None
         with measure_ms(timing, "llm"):
             user_prompt = build_broad_user_prompt(question, context, has_more)
             raw_answer = await self.llm_provider.generate(SYSTEM_PROMPT, user_prompt)
@@ -952,7 +922,6 @@ class RAGPipeline:
                 available_sources,
                 allowed_statuses=RAG_STATUSES,
             )
-            fact_result = _validate_fact_guard(parsed, citations, context)
             if not parsed.is_valid:
                 retry_prompt = build_broad_retry_prompt(
                     question,
@@ -967,37 +936,9 @@ class RAGPipeline:
                     available_sources,
                     allowed_statuses=RAG_STATUSES,
                 )
-                fact_result = _validate_fact_guard(parsed, citations, context)
-            elif fact_result and not fact_result.passed:
-                _trace(
-                    "rag_fact_guard_rejected",
-                    branch="broad_section",
-                    reason=fact_result.reason,
-                    answer_days=sorted(fact_result.answer_facts.days),
-                    context_days=sorted(fact_result.context_facts.days),
-                    answer_times=sorted(fact_result.answer_facts.times),
-                    context_times=sorted(fact_result.context_facts.times),
-                )
-                retry_prompt = build_broad_retry_prompt(
-                    question,
-                    context,
-                    has_more,
-                    describe_fact_guard_retry_error(fact_result),
-                )
-                raw_answer = await self.llm_provider.generate(SYSTEM_PROMPT, retry_prompt)
-                _trace(
-                    "rag_llm_raw",
-                    branch="broad_section_fact_retry",
-                    output=raw_answer[:2000],
-                )
-                parsed = parse_model_output(
-                    raw_answer,
-                    available_sources,
-                    allowed_statuses=RAG_STATUSES,
-                )
-                fact_result = _validate_fact_guard(parsed, citations, context)
+            literal_result = _validate_literal_support(parsed, citations)
 
-        if fact_result and not fact_result.passed:
+        if literal_result and not literal_result.passed:
             status = "generation_failed"
             answer = GENERATION_FAILED_RESPONSE
             response_citations = _citations_for_sources(citations, parsed.sources)
@@ -1006,8 +947,8 @@ class RAGPipeline:
             answer = parsed.answer
             response_citations = _citations_for_sources(citations, parsed.sources)
         else:
-            status = FALLBACK_STATUS
-            answer = REFUSAL
+            status = "generation_failed"
+            answer = GENERATION_FAILED_RESPONSE
             response_citations = []
 
         next_continuation = None
@@ -1032,7 +973,7 @@ class RAGPipeline:
             llm_ms=timing["llm"],
             total_ms=timing["total"],
             parse_error=parsed.error,
-            fact_guard_error=fact_result.reason if fact_result and not fact_result.passed else None,
+            literal_validation_error=_literal_validation_error(literal_result),
         )
         return _response(
             status=status,
@@ -1049,9 +990,7 @@ class RAGPipeline:
                 "candidate_count": candidate_count or len(expansion_chunks),
                 "context_count": len(selected),
                 "parse_error": parsed.error,
-                "fact_guard_error": (
-                    fact_result.reason if fact_result and not fact_result.passed else None
-                ),
+                "literal_validation_error": _literal_validation_error(literal_result),
             },
         )
 
@@ -1221,21 +1160,24 @@ def _citations_for_sources(
     return [citation_by_id[source] for source in sources if source in citation_by_id]
 
 
-def _validate_fact_guard(
+def _validate_literal_support(
     parsed: ParsedModelOutput,
     citations: list[Citation],
-    full_context: str | None = None,
-) -> FactValidationResult | None:
+) -> CriticalLiteralValidation | None:
     if not parsed.is_valid or parsed.status not in SOURCE_REQUIRED_STATUSES:
         return None
     cited_context = _cited_context(citations, parsed.sources)
     if not cited_context:
         return None
-    cited_result = validate_fact_consistency(parsed.answer, cited_context)
-    if cited_result.passed or not full_context:
-        return cited_result
-    full_context_result = validate_fact_consistency(parsed.answer, full_context)
-    return full_context_result if full_context_result.passed else cited_result
+    return validate_critical_literals(parsed.answer, cited_context)
+
+
+def _literal_validation_error(
+    result: CriticalLiteralValidation | None,
+) -> str | None:
+    if result is None or result.passed:
+        return None
+    return f"unsupported_literal:{','.join(result.unsupported)}"
 
 
 def _cited_context(citations: list[Citation], sources: list[str]) -> str:
@@ -1508,7 +1450,7 @@ def _clean_trace(trace: dict[str, object]) -> dict[str, object]:
         "context_count",
         "best_score",
         "parse_error",
-        "fact_guard_error",
+        "literal_validation_error",
         "rewrite_used",
         "llm_router_used",
         "retrieval_first",
