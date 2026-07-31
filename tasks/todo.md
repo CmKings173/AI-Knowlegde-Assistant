@@ -34,11 +34,11 @@
 
 ## Task 4: Adaptive retrieval
 
-- [ ] Viết test normal path không gọi rewrite.
-- [ ] Viết test weak path dùng cùng Qwen rewrite.
-- [ ] Viết test rewrite lỗi fallback query gốc.
-- [ ] Implement schema/prompt và multi-query fusion.
-- [ ] Chạy focused tests và commit.
+- [x] Viết test normal path không gọi rewrite.
+- [x] Viết test weak path dùng cùng Qwen rewrite.
+- [x] Viết test rewrite lỗi fallback query gốc.
+- [x] Implement schema/prompt và multi-query fusion.
+- [x] Chạy focused tests và commit.
 
 ## Task 5: Pipeline retrieval-first
 

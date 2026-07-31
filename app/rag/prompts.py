@@ -258,6 +258,23 @@ Quy tac:
 """
 
 
+ADAPTIVE_REWRITE_SYSTEM_PROMPT = """Bạn viết lại câu hỏi thành truy vấn tìm kiếm tài liệu nội bộ.
+
+Chỉ trả về một JSON object hợp lệ:
+{
+  "queries": ["truy vấn 1", "truy vấn 2"]
+}
+
+Quy tắc bắt buộc:
+- Không trả lời câu hỏi.
+- Không tạo fact, chính sách, mức phạt, IP, port, tài khoản hoặc mật khẩu.
+- Giữ nguyên ý định và đối tượng trong câu hỏi.
+- Chỉ dùng lịch sử để làm rõ đối tượng của câu hỏi tiếp nối.
+- Tạo tối đa hai truy vấn ngắn, khác nhau và hữu ích cho retrieval.
+- Nếu không thể viết lại an toàn, trả về {"queries": []}.
+"""
+
+
 CONTINUATION_PROMPT_VI = "Ban co muon xem tiep khong?"
 
 
@@ -310,6 +327,19 @@ CAU HOI FOLLOW-UP:
 {question}
 
 Hay viet lai thanh mot truy van tra cuu doc lap."""
+
+
+def build_adaptive_rewrite_prompt(
+    question: str,
+    history: list[dict[str, str]],
+) -> str:
+    return f"""LỊCH SỬ HỘI THOẠI GIỚI HẠN:
+{_format_history(history)}
+
+CÂU HỎI HIỆN TẠI:
+{question}
+
+Hãy tạo tối đa hai truy vấn tìm kiếm và chỉ trả về JSON hợp lệ."""
 
 
 def build_user_prompt(
