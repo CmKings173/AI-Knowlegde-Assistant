@@ -2,11 +2,11 @@
 
 ## Task 1: Dataset contract
 
-- [ ] Write RED tests for optional e2e fields on evaluation cases.
-- [ ] Extend `EvaluationCase` without breaking existing retrieval cases.
-- [ ] Validate malformed optional fields with useful errors.
-- [ ] Run focused evaluation tests.
-- [ ] Commit the increment.
+- [x] Write RED tests for optional e2e fields on evaluation cases.
+- [x] Extend `EvaluationCase` without breaking existing retrieval cases.
+- [x] Validate malformed optional fields with useful errors.
+- [x] Run focused evaluation tests.
+- [x] Commit the increment.
 
 ## Task 2: Deterministic scoring
 

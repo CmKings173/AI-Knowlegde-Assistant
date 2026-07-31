@@ -7,6 +7,8 @@ from typing import Any
 
 ALLOWED_OUTCOMES = {"answerable", "partial", "unanswerable", "out_of_scope"}
 RETRIEVAL_OUTCOMES = {"answerable", "partial"}
+ALLOWED_DOCUMENT_SCOPES = {"all", "selected"}
+ALLOWED_HISTORY_ROLES = {"user", "assistant"}
 
 
 class EvaluationCaseError(ValueError):
@@ -21,6 +23,17 @@ class EvaluationCase:
     outcome: str
     expected_document: str | None = None
     expected_section: str | None = None
+    history: list[dict[str, str]] | None = None
+    document_scope: str = "all"
+    document_ids: list[str] | None = None
+    expected_capability: str | None = None
+    expected_intent: str | None = None
+    expected_outcome: str | None = None
+    expected_documents: list[str] | None = None
+    expected_sections: list[str] | None = None
+    required_fact_groups: list[list[str]] | None = None
+    forbidden_fact_groups: list[list[str]] | None = None
+    citation_required: bool | None = None
 
     @property
     def retrieval_applicable(self) -> bool:
@@ -84,6 +97,15 @@ def _parse_case(item: dict[str, Any], index: int) -> EvaluationCase:
     case_id = _required_text(item, "id", index)
     category = _required_text(item, "category", index)
     question = _required_text(item, "question", index)
+    history = _optional_history(item, "history", case_id)
+    document_scope = _optional_choice(
+        item,
+        "document_scope",
+        ALLOWED_DOCUMENT_SCOPES,
+        case_id,
+        default="all",
+    )
+    document_ids = _optional_text_list(item, "document_ids", case_id)
     expected = item.get("expected")
     if not isinstance(expected, dict):
         raise EvaluationCaseError(f"case {case_id} expected must be an object")
@@ -93,6 +115,22 @@ def _parse_case(item: dict[str, Any], index: int) -> EvaluationCase:
 
     expected_document = _optional_text(expected, "document_contains")
     expected_section = _optional_text(expected, "section_contains")
+    expected_capability = _optional_text(expected, "expected_capability")
+    expected_intent = _optional_text(expected, "expected_intent")
+    expected_outcome = _optional_text(expected, "expected_outcome")
+    expected_documents = _optional_text_list(expected, "expected_documents", case_id)
+    expected_sections = _optional_text_list(expected, "expected_sections", case_id)
+    required_fact_groups = _optional_fact_groups(
+        expected,
+        "required_fact_groups",
+        case_id,
+    )
+    forbidden_fact_groups = _optional_fact_groups(
+        expected,
+        "forbidden_fact_groups",
+        case_id,
+    )
+    citation_required = _optional_bool(expected, "citation_required", case_id)
     if outcome in RETRIEVAL_OUTCOMES:
         if not expected_document:
             raise EvaluationCaseError(f"case {case_id} requires document_contains")
@@ -106,6 +144,17 @@ def _parse_case(item: dict[str, Any], index: int) -> EvaluationCase:
         outcome=outcome,
         expected_document=expected_document,
         expected_section=expected_section,
+        history=history,
+        document_scope=document_scope,
+        document_ids=document_ids,
+        expected_capability=expected_capability,
+        expected_intent=expected_intent,
+        expected_outcome=expected_outcome,
+        expected_documents=expected_documents,
+        expected_sections=expected_sections,
+        required_fact_groups=required_fact_groups,
+        forbidden_fact_groups=forbidden_fact_groups,
+        citation_required=citation_required,
     )
 
 
@@ -123,3 +172,114 @@ def _optional_text(item: dict[str, Any], field: str) -> str | None:
     if not isinstance(value, str) or not value.strip():
         raise EvaluationCaseError(f"{field} must be a non-empty string when provided")
     return value.strip()
+
+
+def _optional_choice(
+    item: dict[str, Any],
+    field: str,
+    allowed: set[str],
+    case_id: str,
+    *,
+    default: str,
+) -> str:
+    value = item.get(field, default)
+    if not isinstance(value, str) or value not in allowed:
+        choices = ", ".join(sorted(allowed))
+        raise EvaluationCaseError(f"case {case_id} {field} must be one of: {choices}")
+    return value
+
+
+def _optional_bool(item: dict[str, Any], field: str, case_id: str) -> bool | None:
+    value = item.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise EvaluationCaseError(f"case {case_id} {field} must be a boolean")
+    return value
+
+
+def _optional_text_list(
+    item: dict[str, Any],
+    field: str,
+    case_id: str,
+) -> list[str] | None:
+    value = item.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise EvaluationCaseError(f"case {case_id} {field} must be a list")
+    items: list[str] = []
+    for index, entry in enumerate(value):
+        if not isinstance(entry, str) or not entry.strip():
+            raise EvaluationCaseError(
+                f"case {case_id} {field}[{index}] must be a non-empty string"
+            )
+        items.append(entry.strip())
+    return items
+
+
+def _optional_fact_groups(
+    item: dict[str, Any],
+    field: str,
+    case_id: str,
+) -> list[list[str]] | None:
+    value = item.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise EvaluationCaseError(f"case {case_id} {field} must be a list of lists")
+    groups: list[list[str]] = []
+    for group_index, group in enumerate(value):
+        if not isinstance(group, list) or not group:
+            raise EvaluationCaseError(
+                f"case {case_id} {field}[{group_index}] must be a non-empty list"
+            )
+        parsed_group: list[str] = []
+        for item_index, entry in enumerate(group):
+            if not isinstance(entry, str) or not entry.strip():
+                raise EvaluationCaseError(
+                    f"case {case_id} {field}[{group_index}][{item_index}] "
+                    "must be a non-empty string"
+                )
+            parsed_group.append(entry.strip())
+        groups.append(parsed_group)
+    return groups
+
+
+def _optional_history(
+    item: dict[str, Any],
+    field: str,
+    case_id: str,
+) -> list[dict[str, str]] | None:
+    value = item.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise EvaluationCaseError(f"case {case_id} {field} must be a list")
+    history: list[dict[str, str]] = []
+    for index, entry in enumerate(value):
+        if not isinstance(entry, dict):
+            raise EvaluationCaseError(f"case {case_id} {field}[{index}] must be an object")
+        role = entry.get("role")
+        content = entry.get("content")
+        if role not in ALLOWED_HISTORY_ROLES:
+            raise EvaluationCaseError(
+                f"case {case_id} {field}[{index}].role must be user or assistant"
+            )
+        if not isinstance(content, str) or not content.strip():
+            raise EvaluationCaseError(
+                f"case {case_id} {field}[{index}].content must be non-empty"
+            )
+        parsed = {"role": role, "content": content.strip()}
+        for optional_field in ("status", "capability", "subject", "turn_kind"):
+            optional_value = entry.get(optional_field)
+            if optional_value is None:
+                continue
+            if not isinstance(optional_value, str) or not optional_value.strip():
+                raise EvaluationCaseError(
+                    f"case {case_id} {field}[{index}].{optional_field} "
+                    "must be a non-empty string"
+                )
+            parsed[optional_field] = optional_value.strip()
+        history.append(parsed)
+    return history
