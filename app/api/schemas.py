@@ -108,9 +108,18 @@ class RouteTrace(BaseModel):
     context_count: int | None = None
     best_score: float | None = None
     parse_error: str | None = None
+    literal_validation_error: str | None = None
+    # Deprecated compatibility field. RAG V2 no longer runs the heuristic fact guard.
     fact_guard_error: str | None = None
     rewrite_used: bool = False
     llm_router_used: bool = False
+    retrieval_first: bool = False
+    adaptive_rewrite_used: bool = False
+    adaptive_rewrite_error: str | None = None
+    retrieval_queries: list[str] = []
+    candidate_quality: str | None = None
+    selected_chunk_ids: list[str] = []
+    rejected_chunks: dict[str, str] = {}
 
 
 class ContinuationResponse(BaseModel):

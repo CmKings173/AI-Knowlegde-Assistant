@@ -103,9 +103,18 @@ export type RouteTrace = {
   context_count?: number | null;
   best_score?: number | null;
   parse_error?: string | null;
+  literal_validation_error?: string | null;
+  /** @deprecated RAG V2 no longer runs the heuristic fact guard. */
   fact_guard_error?: string | null;
   rewrite_used?: boolean;
   llm_router_used?: boolean;
+  retrieval_first?: boolean;
+  adaptive_rewrite_used?: boolean;
+  adaptive_rewrite_error?: string | null;
+  retrieval_queries?: string[];
+  candidate_quality?: string | null;
+  selected_chunk_ids?: string[];
+  rejected_chunks?: Record<string, string>;
 };
 
 export type DocumentRecord = {

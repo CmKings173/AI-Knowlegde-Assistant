@@ -46,11 +46,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-1.5-flash"
 
     reranker_enabled: bool = False
-    reranker_provider: str = "http"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
-    reranker_url: str = "http://localhost:8082"
-    reranker_api_key: str = ""
-    reranker_timeout_seconds: int = 60
 
     dense_top_k: int = 15
     lexical_top_k: int = 15
@@ -58,6 +54,9 @@ class Settings(BaseSettings):
     rerank_top_k: int = 20
     final_context_top_n: int = 4
     min_retrieval_score: float = 0.01
+    evidence_min_dense_score: float = 0.45
+    evidence_min_bm25_score: float = 1.0
+    evidence_coherent_domain_min_chunks: int = 2
     max_context_tokens: int = 3000
     broad_max_context_tokens: int = 8000
 

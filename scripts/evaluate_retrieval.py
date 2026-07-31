@@ -5,33 +5,44 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.api.deps import get_retriever
 from app.config import get_settings
+from app.rag.evaluation import load_evaluation_cases, summarize_results
 
 
 async def main() -> None:
     settings = get_settings()
-    dataset_path = settings.data_dir / "evaluation" / "golden_questions.json"
+    project_root = Path(__file__).resolve().parents[1]
+    dataset_path = project_root / "tests" / "evaluation" / "rag_cases.json"
     if not dataset_path.exists():
         raise SystemExit(f"Golden dataset not found: {dataset_path}")
-    questions = json.loads(dataset_path.read_text(encoding="utf-8"))
+    cases = load_evaluation_cases(dataset_path)
     retriever = get_retriever()
-    hits = 0
-    reciprocal_sum = 0.0
-    exact_section = 0
-    latencies: list[float] = []
-    details = []
+    details: list[dict[str, Any]] = []
 
-    for item in questions:
+    for case in cases:
+        if not case.retrieval_applicable:
+            details.append(
+                {
+                    "id": case.case_id,
+                    "category": case.category,
+                    "outcome": case.outcome,
+                    "retrieval_applicable": False,
+                    "hit": None,
+                    "rank": None,
+                    "latency_ms": 0.0,
+                }
+            )
+            continue
         started = time.perf_counter()
-        result = await retriever.retrieve(item["question"])
+        result = await retriever.retrieve(case.question)
         latency_ms = (time.perf_counter() - started) * 1000
-        latencies.append(latency_ms)
-        expected_doc = item["expected_document"].lower()
-        expected_section = item["expected_section"].lower()
+        expected_doc = (case.expected_document or "").lower()
+        expected_section = (case.expected_section or "").lower()
         rank = None
         for index, chunk in enumerate(result.chunks[: settings.final_context_top_n], start=1):
             doc_match = expected_doc in chunk.document_name.lower()
@@ -39,30 +50,21 @@ async def main() -> None:
             if doc_match and section_match:
                 rank = index
                 break
-        if rank is not None:
-            hits += 1
-            reciprocal_sum += 1 / rank
-            exact_section += 1
         details.append(
             {
-                "id": item["id"],
+                "id": case.case_id,
+                "category": case.category,
+                "outcome": case.outcome,
+                "retrieval_applicable": True,
                 "hit": rank is not None,
                 "rank": rank,
                 "latency_ms": latency_ms,
             }
         )
 
-    total = len(questions) or 1
-    report = {
-        "count": len(questions),
-        "hit_rate_at_k": hits / total,
-        "recall_at_k": hits / total,
-        "mrr": reciprocal_sum / total,
-        "exact_section_match": exact_section / total,
-        "average_retrieval_latency_ms": sum(latencies) / total,
-        "details": details,
-    }
+    report = {**summarize_results(details), "details": details}
     report_path = settings.data_dir / "evaluation" / "retrieval_report.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {key: value for key, value in report.items() if key != "details"}
     print(json.dumps(summary, ensure_ascii=False, indent=2))

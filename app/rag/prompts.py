@@ -230,9 +230,6 @@ knowledge_query, clarify, out_of_scope.
 Quy tac:
 - Chon "knowledge_query" khi cau hoi can tra cuu noi quy, van hoa, chinh sach, SOP, FAQ, NAS,
   Outlook, email, Windows, Chrome, bookmark, browser hoac troubleshooting.
-- Cac cau noi doi thuong ve HR/chinh sach noi bo nhu xin nghi, nghi phep, nghi viec,
-  vang mat, tu y nghi, ban giao khi nghi viec, ky luat, thoi gian lam viec, quan ly truc tiep
-  phai duoc coi la "knowledge_query" neu co kha nang tra cuu tai lieu noi bo.
 - Chon "broad_section_query" khi nguoi dung muon liet ke/tong hop day du mot phan/muc.
 - Chon "follow_up" khi cau hoi phu thuoc vao lich su hoi thoai.
 - Voi follow-up bat be nguon/do chac chan, subtype la "source_challenge".
@@ -240,8 +237,6 @@ Quy tac:
 - Voi "tiep di/xem tiep" sau cau tra loi dai, subtype la "continuation".
 - Chon "clarify" khi cau hoi co ve trong pham vi noi bo nhung thieu doi tuong ro rang.
 - Chon "out_of_scope" chi khi chu de ro rang ngoai kho kien thuc noi bo.
-- Khi khong chac mot cau hoi co phai nghiep vu noi bo khong, uu tien "knowledge_query"
-  hoac "clarify", khong day sang "conversational_llm".
 """
 
 
@@ -260,6 +255,23 @@ Quy tac:
 - Khong tra loi cau hoi.
 - Khong them thong tin khong co trong lich su hoac cau hien tai.
 - Neu khong the viet lai ro rang, tra ve {"query": ""}.
+"""
+
+
+ADAPTIVE_REWRITE_SYSTEM_PROMPT = """Bạn viết lại câu hỏi thành truy vấn tìm kiếm tài liệu nội bộ.
+
+Chỉ trả về một JSON object hợp lệ:
+{
+  "queries": ["truy vấn 1", "truy vấn 2"]
+}
+
+Quy tắc bắt buộc:
+- Không trả lời câu hỏi.
+- Không tạo fact, chính sách, mức phạt, IP, port, tài khoản hoặc mật khẩu.
+- Giữ nguyên ý định và đối tượng trong câu hỏi.
+- Chỉ dùng lịch sử để làm rõ đối tượng của câu hỏi tiếp nối.
+- Tạo tối đa hai truy vấn ngắn, khác nhau và hữu ích cho retrieval.
+- Nếu không thể viết lại an toàn, trả về {"queries": []}.
 """
 
 
@@ -315,6 +327,19 @@ CAU HOI FOLLOW-UP:
 {question}
 
 Hay viet lai thanh mot truy van tra cuu doc lap."""
+
+
+def build_adaptive_rewrite_prompt(
+    question: str,
+    history: list[dict[str, str]],
+) -> str:
+    return f"""LỊCH SỬ HỘI THOẠI GIỚI HẠN:
+{_format_history(history)}
+
+CÂU HỎI HIỆN TẠI:
+{question}
+
+Hãy tạo tối đa hai truy vấn tìm kiếm và chỉ trả về JSON hợp lệ."""
 
 
 def build_user_prompt(

@@ -1,0 +1,138 @@
+[
+  {
+    "id": "fact-working-hours-001",
+    "category": "fact",
+    "question": "Thời gian làm việc của công ty là mấy giờ?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Điều 1"
+    }
+  },
+  {
+    "id": "paraphrase-lunch-001",
+    "category": "paraphrase",
+    "question": "Buổi trưa mọi người được nghỉ trong khoảng nào?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Điều 1"
+    }
+  },
+  {
+    "id": "colloquial-saturday-001",
+    "category": "colloquial",
+    "question": "Thứ Bảy bên mình có phải đi làm không vậy?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Điều 1"
+    }
+  },
+  {
+    "id": "consequence-late-001",
+    "category": "consequence",
+    "question": "Nếu tôi đi làm muộn thì có sao không?",
+    "expected": {
+      "outcome": "partial",
+      "document_contains": "Nội Quy",
+      "section_contains": "Thời gian làm việc"
+    }
+  },
+  {
+    "id": "procedure-nas-internal-001",
+    "category": "procedure",
+    "question": "Hướng dẫn tôi truy cập NAS trong mạng nội bộ.",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Quy Định",
+      "section_contains": "NAS"
+    }
+  },
+  {
+    "id": "procedure-outlook-001",
+    "category": "procedure",
+    "question": "Tôi cần cấu hình Outlook như thế nào?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Quy Định",
+      "section_contains": "Outlook"
+    }
+  },
+  {
+    "id": "broad-company-rules-001",
+    "category": "broad",
+    "question": "Nội quy công ty gồm những gì?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Nội quy của Công ty"
+    }
+  },
+  {
+    "id": "partial-nas-port-001",
+    "category": "partial",
+    "question": "Cách truy cập NAS và port của NAS là bao nhiêu?",
+    "expected": {
+      "outcome": "partial",
+      "document_contains": "Quy Định",
+      "section_contains": "NAS"
+    }
+  },
+  {
+    "id": "unanswerable-tet-bonus-001",
+    "category": "unanswerable",
+    "question": "Công ty thưởng Tết bao nhiêu tháng lương?",
+    "expected": {
+      "outcome": "unanswerable"
+    }
+  },
+  {
+    "id": "out-of-scope-weather-001",
+    "category": "out_of_scope",
+    "question": "Hôm nay thời tiết thế nào?",
+    "expected": {
+      "outcome": "out_of_scope"
+    }
+  },
+  {
+    "id": "cross-domain-assets-001",
+    "category": "cross_domain",
+    "question": "Có được tự ý mang hàng hóa ra khỏi công ty không?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Hàng hóa, tài sản"
+    }
+  },
+  {
+    "id": "document-scope-outlook-001",
+    "category": "document_scope",
+    "question": "Thông tin mail server nằm ở đâu?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Quy Định",
+      "section_contains": "Outlook"
+    }
+  },
+  {
+    "id": "colloquial-leave-001",
+    "category": "colloquial",
+    "question": "Muốn xin nghỉ một hôm thì báo ai?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Điều 1"
+    }
+  },
+  {
+    "id": "paraphrase-culture-001",
+    "category": "paraphrase",
+    "question": "Môi trường làm việc mà công ty hướng tới là gì?",
+    "expected": {
+      "outcome": "answerable",
+      "document_contains": "Nội Quy",
+      "section_contains": "Văn Hóa"
+    }
+  }
+]
