@@ -31,12 +31,12 @@
 
 ## Task 4: Live runner
 
-- [ ] Write tests for case filtering and report aggregation.
-- [ ] Add `scripts/evaluate_rag.py`.
-- [ ] Write JSON report to `data/evaluation/rag_e2e_report.json`.
-- [ ] Write Markdown summary to `data/evaluation/rag_e2e_summary.md`.
-- [ ] Handle missing live dependencies clearly.
-- [ ] Commit the increment.
+- [x] Write tests for case filtering and report aggregation.
+- [x] Add `scripts/evaluate_rag.py`.
+- [x] Write JSON report to `data/evaluation/rag_e2e_report.json`.
+- [x] Write Markdown summary to `data/evaluation/rag_e2e_summary.md`.
+- [x] Handle missing live dependencies clearly.
+- [x] Commit the increment.
 
 ## Task 5: Dataset coverage upgrade
 

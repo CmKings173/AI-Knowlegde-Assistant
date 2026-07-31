@@ -98,6 +98,96 @@ def load_evaluation_cases(path: Path) -> list[EvaluationCase]:
     return cases
 
 
+def filter_evaluation_cases(
+    cases: list[EvaluationCase],
+    *,
+    case_id: str | None = None,
+    category: str | None = None,
+    limit: int | None = None,
+) -> list[EvaluationCase]:
+    selected = cases
+    if case_id:
+        selected = [case for case in selected if case.case_id == case_id]
+    if category:
+        selected = [case for case in selected if case.category == category]
+    if limit is not None:
+        selected = selected[:limit]
+    return selected
+
+
+def summarize_e2e_results(details: list[dict[str, Any]]) -> dict[str, Any]:
+    count = len(details)
+    passed = sum(item.get("passed") is True for item in details)
+    failure_stages: dict[str, int] = {}
+    citation_values: list[bool] = []
+    vietnamese_values: list[bool] = []
+    required_fact_recalls: list[float] = []
+    qwen_calls: list[float] = []
+    total_latencies: list[float] = []
+    retrieval_latencies: list[float] = []
+    llm_latencies: list[float] = []
+
+    for item in details:
+        stage = str(item.get("first_failure_stage") or "none")
+        failure_stages[stage] = failure_stages.get(stage, 0) + 1
+        if isinstance(item.get("citation_valid"), bool):
+            citation_values.append(bool(item["citation_valid"]))
+        if isinstance(item.get("vietnamese_valid"), bool):
+            vietnamese_values.append(bool(item["vietnamese_valid"]))
+        if isinstance(item.get("required_fact_recall"), int | float):
+            required_fact_recalls.append(float(item["required_fact_recall"]))
+        if isinstance(item.get("qwen_calls"), int | float):
+            qwen_calls.append(float(item["qwen_calls"]))
+        timing = item.get("timing_ms")
+        if isinstance(timing, dict):
+            _append_number(timing.get("total"), total_latencies)
+            _append_number(timing.get("retrieval"), retrieval_latencies)
+            _append_number(timing.get("llm"), llm_latencies)
+
+    return {
+        "count": count,
+        "passed": passed,
+        "failed": count - passed,
+        "pass_rate": passed / count if count else 0.0,
+        "failure_stages": failure_stages,
+        "average_required_fact_recall": _average(required_fact_recalls),
+        "citation_valid_rate": _true_rate(citation_values),
+        "vietnamese_valid_rate": _true_rate(vietnamese_values),
+        "average_qwen_calls": _average(qwen_calls),
+        "latency_ms": {
+            "total": _latency_summary(total_latencies),
+            "retrieval": _latency_summary(retrieval_latencies),
+            "llm": _latency_summary(llm_latencies),
+        },
+    }
+
+
+def render_e2e_summary(report: dict[str, Any]) -> str:
+    summary = report.get("summary", {})
+    details = report.get("details", [])
+    lines = [
+        "# RAG End-to-End Evaluation Summary",
+        "",
+        f"- Cases: {summary.get('count', 0)}",
+        f"- Passed: {summary.get('passed', 0)}",
+        f"- Pass rate: {float(summary.get('pass_rate', 0.0)):.2%}",
+        f"- Failure stages: {json.dumps(summary.get('failure_stages', {}), sort_keys=True)}",
+        "",
+        "## Failed Cases",
+        "",
+    ]
+    failed = [item for item in details if item.get("passed") is not True]
+    if not failed:
+        lines.append("None.")
+    for item in failed:
+        reasons = ", ".join(str(reason) for reason in item.get("failure_reasons", []))
+        lines.append(
+            f"- `{item.get('id')}`: {item.get('first_failure_stage')} - {reasons}"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def classify_first_failure(
     case: EvaluationCase,
     *,
@@ -449,6 +539,47 @@ def _normalize_text(value: str) -> str:
         char for char in decomposed if unicodedata.category(char) != "Mn"
     )
     return " ".join(without_marks.casefold().split())
+
+
+def _append_number(value: object, target: list[float]) -> None:
+    if isinstance(value, int | float):
+        target.append(float(value))
+
+
+def _average(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _true_rate(values: list[bool]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _latency_summary(values: list[float]) -> dict[str, float | None]:
+    if not values:
+        return {"average": None, "p50": None, "p95": None, "max": None}
+    sorted_values = sorted(values)
+    return {
+        "average": sum(sorted_values) / len(sorted_values),
+        "p50": _percentile(sorted_values, 0.5),
+        "p95": _percentile(sorted_values, 0.95),
+        "max": sorted_values[-1],
+    }
+
+
+def _percentile(sorted_values: list[float], percentile: float) -> float:
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    position = (len(sorted_values) - 1) * percentile
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(sorted_values) - 1)
+    fraction = position - lower_index
+    return sorted_values[lower_index] + (
+        sorted_values[upper_index] - sorted_values[lower_index]
+    ) * fraction
 
 
 def _optional_string(value: object) -> str | None:

@@ -12,7 +12,10 @@ from app.rag.evaluation import (
     ResponseEvaluation,
     classify_first_failure,
     evaluate_response,
+    filter_evaluation_cases,
     load_evaluation_cases,
+    render_e2e_summary,
+    summarize_e2e_results,
 )
 
 
@@ -327,3 +330,85 @@ def test_classify_first_failure_reports_generation_or_validation_after_context()
     assert generation_result.failure_reasons == ["missing_required_fact_group:0"]
     assert validation_result.first_failure_stage == "validation"
     assert validation_result.failure_reasons == ["parse_error:invalid_json"]
+
+
+def test_filter_evaluation_cases_supports_case_id_category_and_limit() -> None:
+    cases = [
+        EvaluationCase("fact-1", "fact", "q1", "answerable"),
+        EvaluationCase("routing-1", "routing", "q2", "out_of_scope"),
+        EvaluationCase("routing-2", "routing", "q3", "out_of_scope"),
+    ]
+
+    assert [case.case_id for case in filter_evaluation_cases(cases, case_id="fact-1")] == [
+        "fact-1"
+    ]
+    assert [
+        case.case_id
+        for case in filter_evaluation_cases(cases, category="routing", limit=1)
+    ] == ["routing-1"]
+
+
+def test_summarize_e2e_results_reports_stage_and_quality_metrics() -> None:
+    summary = summarize_e2e_results(
+        [
+            {
+                "id": "ok",
+                "passed": True,
+                "first_failure_stage": "none",
+                "status": "answered",
+                "expected_status": "answered",
+                "required_fact_recall": 1.0,
+                "citation_valid": True,
+                "vietnamese_valid": True,
+                "qwen_calls": 1,
+                "timing_ms": {"total": 100, "retrieval": 20, "llm": 70},
+            },
+            {
+                "id": "bad",
+                "passed": False,
+                "first_failure_stage": "generation",
+                "status": "answered",
+                "expected_status": "answered",
+                "required_fact_recall": 0.0,
+                "citation_valid": False,
+                "vietnamese_valid": True,
+                "qwen_calls": 2,
+                "timing_ms": {"total": 300, "retrieval": 50, "llm": 220},
+            },
+        ]
+    )
+
+    assert summary["count"] == 2
+    assert summary["passed"] == 1
+    assert summary["pass_rate"] == 0.5
+    assert summary["failure_stages"] == {"none": 1, "generation": 1}
+    assert summary["average_required_fact_recall"] == 0.5
+    assert summary["citation_valid_rate"] == 0.5
+    assert summary["vietnamese_valid_rate"] == 1.0
+    assert summary["average_qwen_calls"] == 1.5
+    assert summary["latency_ms"]["total"]["p50"] == 200.0
+
+
+def test_render_e2e_summary_includes_failed_case_ids() -> None:
+    report = {
+        "summary": {
+            "count": 2,
+            "passed": 1,
+            "pass_rate": 0.5,
+            "failure_stages": {"generation": 1},
+        },
+        "details": [
+            {
+                "id": "bad",
+                "passed": False,
+                "first_failure_stage": "generation",
+                "failure_reasons": ["missing_required_fact_group:0"],
+            }
+        ],
+    }
+
+    markdown = render_e2e_summary(report)
+
+    assert "# RAG End-to-End Evaluation Summary" in markdown
+    assert "bad" in markdown
+    assert "missing_required_fact_group:0" in markdown
