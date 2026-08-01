@@ -1,0 +1,264 @@
+{
+  "summary": {
+    "count": 3,
+    "passed": 0,
+    "failed": 3,
+    "pass_rate": 0.0,
+    "failure_stages": {
+      "generation": 2,
+      "router": 1
+    },
+    "average_required_fact_recall": 0.16666666666666666,
+    "citation_valid_rate": 0.6666666666666666,
+    "vietnamese_valid_rate": 1.0,
+    "average_qwen_calls": 1.6666666666666667,
+    "latency_ms": {
+      "total": {
+        "average": 7015.333333333333,
+        "p50": 6800.0,
+        "p95": 10505.3,
+        "max": 10917.0
+      },
+      "retrieval": {
+        "average": 185.66666666666666,
+        "p50": 244.0,
+        "p95": 306.1,
+        "max": 313.0
+      },
+      "llm": {
+        "average": 2999.6666666666665,
+        "p50": 2718.0,
+        "p95": 5924.7,
+        "max": 6281.0
+      }
+    }
+  },
+  "details": [
+    {
+      "id": "fact-working-hours-001",
+      "category": "fact",
+      "question": "Thời gian làm việc của công ty là mấy giờ?",
+      "passed": false,
+      "first_failure_stage": "generation",
+      "failure_reasons": [
+        "missing_required_fact_group:1"
+      ],
+      "status": "answered",
+      "expected_status": "answered",
+      "required_fact_recall": 0.5,
+      "forbidden_fact_violations": [],
+      "citation_valid": true,
+      "vietnamese_valid": true,
+      "qwen_calls": 2,
+      "timing_ms": {
+        "router": 4319,
+        "rewrite": 0,
+        "retrieval": 313,
+        "rerank": 0,
+        "llm": 6281,
+        "total": 10917
+      },
+      "trace": {
+        "retrieval_queries": [
+          "Thời gian làm việc của công ty là mấy giờ?"
+        ],
+        "retrieval_first": false,
+        "context_count": 4,
+        "language_guard_decision": null,
+        "candidate_quality": "coherent_evidence",
+        "turn_reason": "no_history",
+        "rejected_chunks": {
+          "6dcea1bb-c7e7-52fc-b928-39e334de3240": "cross_domain",
+          "c2db0fd4-ff1d-5c38-8e34-d43004c863a9": "context_limit",
+          "df85f3eb-54b9-56ae-b84b-5b429b3c938a": "context_limit",
+          "b812f7b7-b17e-513d-a013-70f13521905b": "duplicate",
+          "4733709f-1b3f-5f55-b9bd-6bea8ec7edde": "duplicate",
+          "039d56eb-fc8c-5660-9444-066e67f33c6d": "cross_domain",
+          "da7fe4a0-64c4-5111-8a7c-8d214b95950b": "cross_domain",
+          "86fba908-c0ee-5da5-9565-391433dfd964": "duplicate",
+          "64dd8f48-cf69-57fa-a31d-d18f47623d6b": "context_limit",
+          "370eb4b9-f3b4-553c-a1a9-f2f3eadd71d4": "duplicate",
+          "7a949be7-dceb-53a3-b28f-e80615191065": "context_limit",
+          "42eaadae-48f1-54c1-88f1-b5c4a0f6b75e": "duplicate",
+          "cadc3504-27b8-514a-977b-17f1fd397ae7": "context_limit",
+          "cf41d2e2-3413-526b-81f5-0e4d4d4af5d9": "duplicate",
+          "8e690243-05f6-54d1-afb7-da23055f5244": "context_limit",
+          "06695057-baa2-55ff-974c-330ef74b3341": "context_limit"
+        },
+        "turn_kind": "independent",
+        "adaptive_rewrite_used": false,
+        "adaptive_rewrite_error": null,
+        "route_affinity": "internal_knowledge",
+        "reason": "cau hoi lien quan den thong tin noi bo cong ty",
+        "parse_error": null,
+        "language_retry_used": null,
+        "capability_reason": "internal_knowledge_capability",
+        "intent": "ask_information",
+        "candidate_count": 20,
+        "confidence": 1.0,
+        "best_score": 0.032522,
+        "capability": "rag",
+        "language_stream_interrupted": null,
+        "language_fallback_used": null,
+        "route_subject": "thoi gian lam viec cua cong ty",
+        "rewrite_used": null,
+        "route_top_score": null,
+        "llm_router_used": true,
+        "literal_validation_error": null,
+        "route_margin": null,
+        "selected_chunk_ids": [
+          "6f6fbde8-fb24-5def-a568-0e90f1ded405",
+          "d081e1b1-8365-5265-ae20-f57250f71f02",
+          "70fa318d-5004-5a45-bd5d-e6deeda57fa0",
+          "36618824-e85c-57b2-81ad-64d6cd9c1237"
+        ],
+        "route_classifier": "qwen",
+        "subtype": "independent",
+        "branch": "knowledge"
+      }
+    },
+    {
+      "id": "paraphrase-lunch-001",
+      "category": "paraphrase",
+      "question": "Buổi trưa mọi người được nghỉ trong khoảng nào?",
+      "passed": false,
+      "first_failure_stage": "generation",
+      "failure_reasons": [
+        "missing_required_fact_group:0",
+        "missing_required_fact_group:1"
+      ],
+      "status": "answered",
+      "expected_status": "answered",
+      "required_fact_recall": 0.0,
+      "forbidden_fact_violations": [],
+      "citation_valid": true,
+      "vietnamese_valid": true,
+      "qwen_calls": 2,
+      "timing_ms": {
+        "router": 3835,
+        "rewrite": 0,
+        "retrieval": 244,
+        "rerank": 0,
+        "llm": 2718,
+        "total": 6800
+      },
+      "trace": {
+        "retrieval_queries": [
+          "Buổi trưa mọi người được nghỉ trong khoảng nào?"
+        ],
+        "retrieval_first": false,
+        "context_count": 4,
+        "language_guard_decision": null,
+        "candidate_quality": "coherent_evidence",
+        "turn_reason": "no_history",
+        "rejected_chunks": {
+          "6dcea1bb-c7e7-52fc-b928-39e334de3240": "cross_domain",
+          "039d56eb-fc8c-5660-9444-066e67f33c6d": "cross_domain",
+          "b812f7b7-b17e-513d-a013-70f13521905b": "duplicate",
+          "a444acf4-6327-5f47-81a7-d8beb047dad5": "cross_domain",
+          "4733709f-1b3f-5f55-b9bd-6bea8ec7edde": "duplicate",
+          "c870054c-93d5-5eff-a3a4-8fbaba7cc699": "context_limit",
+          "86fba908-c0ee-5da5-9565-391433dfd964": "duplicate",
+          "cadc3504-27b8-514a-977b-17f1fd397ae7": "context_limit",
+          "60d2f706-92d3-5830-ae74-58e92f28b19d": "duplicate",
+          "7f3a473c-108b-544d-b033-c1bbecdf36ad": "cross_domain",
+          "df85f3eb-54b9-56ae-b84b-5b429b3c938a": "context_limit",
+          "370eb4b9-f3b4-553c-a1a9-f2f3eadd71d4": "duplicate",
+          "42eaadae-48f1-54c1-88f1-b5c4a0f6b75e": "duplicate",
+          "6e68cfc7-0390-5833-a44a-a17ce24bcfbf": "cross_domain",
+          "da7fe4a0-64c4-5111-8a7c-8d214b95950b": "cross_domain",
+          "8ba9c5e8-2cf2-5fc2-8bc1-118d6e8c4e3e": "weak_signal"
+        },
+        "turn_kind": "independent",
+        "adaptive_rewrite_used": false,
+        "adaptive_rewrite_error": null,
+        "route_affinity": "internal_knowledge",
+        "reason": "Nguoi dung hoi thong tin ve gio nghi trua cua cong ty",
+        "parse_error": null,
+        "language_retry_used": null,
+        "capability_reason": "internal_knowledge_capability",
+        "intent": "ask_information",
+        "candidate_count": 20,
+        "confidence": 1.0,
+        "best_score": 0.032787,
+        "capability": "rag",
+        "language_stream_interrupted": null,
+        "language_fallback_used": null,
+        "route_subject": "quy dinh ve gio lam viec",
+        "rewrite_used": null,
+        "route_top_score": null,
+        "llm_router_used": true,
+        "literal_validation_error": null,
+        "route_margin": null,
+        "selected_chunk_ids": [
+          "6f6fbde8-fb24-5def-a568-0e90f1ded405",
+          "d081e1b1-8365-5265-ae20-f57250f71f02",
+          "70fa318d-5004-5a45-bd5d-e6deeda57fa0",
+          "36618824-e85c-57b2-81ad-64d6cd9c1237"
+        ],
+        "route_classifier": "qwen",
+        "subtype": "independent",
+        "branch": "knowledge"
+      }
+    },
+    {
+      "id": "colloquial-saturday-001",
+      "category": "colloquial",
+      "question": "Thứ Bảy bên mình có phải đi làm không vậy?",
+      "passed": false,
+      "first_failure_stage": "router",
+      "failure_reasons": [
+        "capability_mismatch:unsupported"
+      ],
+      "status": "out_of_scope",
+      "expected_status": "answered",
+      "required_fact_recall": 0.0,
+      "forbidden_fact_violations": [],
+      "citation_valid": false,
+      "vietnamese_valid": true,
+      "qwen_calls": 1,
+      "timing_ms": {
+        "router": 3329,
+        "rewrite": 0,
+        "retrieval": 0,
+        "rerank": 0,
+        "llm": 0,
+        "total": 3329
+      },
+      "trace": {
+        "retrieval_queries": null,
+        "retrieval_first": false,
+        "context_count": null,
+        "language_guard_decision": null,
+        "candidate_quality": null,
+        "turn_reason": "no_history",
+        "rejected_chunks": null,
+        "turn_kind": "independent",
+        "adaptive_rewrite_used": null,
+        "adaptive_rewrite_error": null,
+        "route_affinity": "external",
+        "reason": "Người dùng hỏi về lịch làm việc vào ngày cụ thể.",
+        "parse_error": null,
+        "language_retry_used": null,
+        "capability_reason": "unsupported_capability",
+        "intent": "ask_information",
+        "candidate_count": null,
+        "confidence": 1.0,
+        "best_score": null,
+        "capability": "unsupported",
+        "language_stream_interrupted": null,
+        "language_fallback_used": null,
+        "route_subject": "lịch làm việc",
+        "rewrite_used": null,
+        "route_top_score": null,
+        "llm_router_used": true,
+        "literal_validation_error": null,
+        "route_margin": null,
+        "selected_chunk_ids": null,
+        "route_classifier": "qwen",
+        "subtype": "independent",
+        "branch": "out_of_scope"
+      }
+    }
+  ]
+}
